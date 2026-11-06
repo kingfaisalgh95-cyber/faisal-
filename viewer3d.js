@@ -15,8 +15,8 @@
     r.shadowMap.enabled = true; r.shadowMap.type = T.PCFSoftShadowMap;
     var sc = new T.Scene(), cam = new T.PerspectiveCamera(40, 1, 0.1, 2000);
     sc.fog = new T.Fog(0xf0d9b0, 120, 420);
-    sc.add(new T.HemisphereLight(0xffe9c4, 0x6b5a45, 0.7));
-    var sun = new T.DirectionalLight(0xffd7a0, 1.0); sun.position.set(40, 70, 30);
+    sc.add(new T.HemisphereLight(0xfff0d8, 0x6b5a45, 0.55));
+    var sun = new T.DirectionalLight(0xffdcae, 0.8); sun.position.set(40, 70, 30);
     sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
     var sh = sun.shadow.camera; sh.left = -90; sh.right = 90; sh.top = 90; sh.bottom = -90; sh.near = 1; sh.far = 300;
     sc.add(sun);
@@ -37,7 +37,7 @@
       var gm = new T.InstancedMesh(new T.BoxGeometry(tile, 0.5, tile), mat(0xffffff, 1), cnt), m4g = new T.Matrix4(), col = new T.Color(), k = 0;
       for (var i = 0; i < n; i++) for (var j = 0; j < n; j++) {
         m4g.setPosition((i - n / 2 + 0.5) * tile, -0.25, (j - n / 2 + 0.5) * tile); gm.setMatrixAt(k, m4g);
-        gm.setColorAt(k++, col.setHex(((i + j) % 2) ? 0xd9c49a : 0xcfb88b));
+        gm.setColorAt(k++, col.setHex(((i + j) % 2) ? 0xcdb98f : 0xc2ad82));
       }
       gm.receiveShadow = true; g.add(gm);
 
@@ -73,6 +73,10 @@
         });
         im.instanceMatrix.needsUpdate = true; g.add(im);
       }
+      (R.obsRects || []).forEach(function (o) {
+        box(o.w, 1.2, o.h, 0x9a9488, o.x + o.w / 2 - W / 2, H + 0.4 + 0.6, o.y + o.h / 2 - L / 2);
+        box(o.w * 0.7, 0.3, o.h * 0.7, 0x6f6a60, o.x + o.w / 2 - W / 2, H + 1.15 + 0.4, o.y + o.h / 2 - L / 2);
+      });
       box(0.7, 0.9, 0.25, 0x2f9a5f, -W / 2 + 1.2, 1.3, L / 2 + 0.2);
       if (R.bat) box(0.8, 1.3, 0.45, 0x2b6cb0, -W / 2 + 2.6, 1.5, L / 2 + 0.3);
       st.grp = g; sc.add(g);
@@ -111,6 +115,11 @@
     return {
       update: function (R2) { build(R2); },
       zoom: function (f) { st.dist = Math.max(10, Math.min(300, st.dist * f)); },
+      view: function (name) {
+        st.auto = false;
+        if (name === 'top') { st.az = 0; st.el = 1.45; } else if (name === 'side') { st.az = 0; st.el = 0.2; } else { st.az = -0.75; st.el = 0.55; }
+      },
+      state: function () { return { az: st.az, el: st.el, dist: st.dist }; },
       reset: function () { st.az = -0.75; st.el = 0.55; st.auto = true; st.key = ''; build(R); },
       destroy: function () {
         st.alive = false; root.removeEventListener('resize', onResize);

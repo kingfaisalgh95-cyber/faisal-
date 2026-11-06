@@ -147,8 +147,16 @@
     var total = cols * rows, obsArea = Math.max(0, num(p.obstacle, 0)), blocked = Math.min(total, Math.ceil(obsArea / (pitchX * pitchY)));
     var disabled = {}; (p.disabled || []).forEach(function (i) { disabled[i] = 1; });
     var slots = [], avail = [];
+    // رسم الألواح من (x0,y0) بالمتر؛ المعوقات المستطيلة p.obs = [{x,y,w,h}] تحجب الألواح المتقاطعة معها
+    var gridW = cols * pitchX - A.gap, x0 = (W - gridW) / 2, gridH = Math.max(0, (rows - 1) * pitchY + fp), y0 = A.margin + ((L - 2 * A.margin) - gridH) / 2;
+    var obsRects = (p.obs || []).filter(function (o) { return o && o.w > 0 && o.h > 0; });
+    function hitObs(r, c) {
+      var px = x0 + c * pitchX, py = y0 + r * pitchY;
+      return obsRects.some(function (o) { return px < o.x + o.w && px + panel.wid > o.x && py < o.y + o.h && py + fp > o.y; });
+    }
     for (var i = 0; i < total; i++) {
-      var st = i >= total - blocked ? 'obs' : (disabled[i] ? 'x' : 'free');
+      var rr = Math.floor(i / cols), cc = i % cols;
+      var st = (i >= total - blocked || hitObs(rr, cc)) ? 'obs' : (disabled[i] ? 'x' : 'free');
       slots.push({ i: i, r: Math.floor(i / cols), c: i % cols, st: st }); if (st === 'free') avail.push(i);
     }
     if (!avail.length) return { ok: false, error: 'roof' };
@@ -209,7 +217,7 @@
     return {
       ok: true, type: type, system: system, cityKey: p.city in CITIES ? p.city : 'riyadh', city: city, yieldKwh: yieldKwh, L: L, W: W, tilt: tilt,
       panel: panel, inv: inv, invQty: qty, invKw: invKwTotal, dcac: dcac, monthly: monthly, annual: annual, billNow: billNow, billAfter: billAfter,
-      cols: cols, rows: rows, total: total, slots: slots, blocked: blocked, avail: avail.length, need: need, n: n, limited: n < need && !p.manual,
+      cols: cols, rows: rows, total: total, slots: slots, blocked: slots.filter(function (q) { return q.st === 'obs'; }).length, x0: x0, y0: y0, obsRects: obsRects, avail: avail.length, need: need, n: n, limited: n < need && !p.manual,
       pitchX: pitchX, pitchY: pitchY, fp: fp, kwp: kwp, prod: prod, daily: prod / 365, strings: strings, bat: bat, elec: elec, parts: parts, cost: cost,
       save: save, fin: fin, payback: fin.payback, coverage: Math.min(1, prod / annual), co2: prod * A.co2, warnings: warnings,
       equipVerified: !!(panel.verified && inv.verified && (!bat || bat.unit.verified)),

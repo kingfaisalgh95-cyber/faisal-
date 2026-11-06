@@ -161,3 +161,35 @@ details.faq{border:1px solid var(--line);border-radius:12px;padding:12px 14px;ma
   #report .tblwrap{overflow:visible}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ===== studio redesign (reference UI) ===== */
+.studio{display:grid;grid-template-columns:minmax(260px,5fr) minmax(0,7fr);gap:16px;align-items:start}
+.studio .fcol{display:flex;flex-direction:column;gap:6px}
+.vcol{display:flex;flex-direction:column}.vcol .seg{align-self:flex-start}
+.btn.wide{width:100%;margin-top:10px}
+.types.four-c{grid-template-columns:repeat(4,minmax(0,1fr))}
+.dgrid{display:grid;grid-template-columns:minmax(0,7fr) minmax(260px,5fr);gap:16px;align-items:start}.dside{display:flex;flex-direction:column;gap:14px}
+.viewer{min-height:340px;padding:0}.viewer svg.roof{padding:10px 10px 10px 46px;max-height:520px}.viewer .gl{height:420px}
+[dir=rtl] .viewer svg.roof{padding:10px 46px 10px 10px}
+.vtools{position:absolute;inset-inline-start:8px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:4px;z-index:2;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+.vtools button{width:34px;height:34px;border:0;border-radius:8px;background:transparent;color:var(--ink);cursor:pointer;display:grid;place-items:center}
+.vtools button svg{width:19px;height:19px}.vtools button[aria-pressed="true"]{background:var(--g);color:#fff}
+.vtools button:hover{background:var(--gs)}.vtools button[aria-pressed="true"]:hover{background:var(--g)}
+.vcard{position:absolute;inset-inline-start:10px;top:10px;display:flex;gap:14px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 14px;font-size:12px;color:var(--mute);z-index:2;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+.vcard span{display:flex;flex-direction:column;gap:2px}.vcard b{color:var(--ink);font-size:15px}
+.viewer .vtools~.vcard{inset-inline-start:58px}
+.compass{position:absolute;inset-inline-end:10px;top:10px;width:46px;height:46px;border-radius:50%;background:var(--panel);border:1px solid var(--line);display:grid;place-items:center;z-index:2;pointer-events:none}
+.compass i{font-style:normal;font-weight:700;font-size:12px;color:var(--g);width:100%;height:100%;display:grid;place-items:start center;padding-top:4px;transition:transform .05s linear}
+.vctl{flex-direction:column;z-index:2;bottom:auto;top:74px;inset-inline-end:auto;inset-inline-start:10px}
+.vpre{position:absolute;inset-inline-end:10px;bottom:10px;display:flex;align-items:center;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:4px 6px;z-index:2;font-size:12.5px}
+.vpre b{color:var(--mute);font-weight:500;padding-inline:6px}.vpre button{border:0;background:transparent;padding:6px 10px;border-radius:8px;cursor:pointer;color:var(--ink)}.vpre button:hover{background:var(--gs);color:var(--g)}
+.tabs{display:flex;gap:4px;background:var(--bg);border-radius:10px;padding:4px;margin:8px 0}.tabs button{flex:1;border:0;background:transparent;padding:8px;border-radius:8px;cursor:pointer;color:var(--mute)}.tabs button[aria-selected="true"]{background:var(--panel);color:var(--g);font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.replist{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}.repbtn{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:10px;cursor:pointer;text-align:start;color:var(--ink)}.repbtn svg{width:20px;height:20px;color:var(--err);flex:none}
+.cta{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;background:var(--gs)}
+.ring{--p:50;width:74px;height:74px;border-radius:50%;background:conic-gradient(var(--g) calc(var(--p)*1%),var(--line) 0);display:grid;place-items:center;flex:none;position:relative}
+.ring::before{content:"";position:absolute;inset:8px;border-radius:50%;background:var(--panel)}.ring b{position:relative;font-size:15px;color:var(--g)}
+.sumrow{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.steps button{white-space:normal}
+@media(max-width:1180px){.dgrid{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:900px){.studio{grid-template-columns:minmax(0,1fr)}.viewer .gl{height:340px}}
+@media(max-width:560px){.types.four-c{grid-template-columns:1fr 1fr}.vpre b{display:none}.vcard{gap:8px;padding:6px 10px}.viewer svg.roof{padding:6px 6px 6px 42px}[dir=rtl] .viewer svg.roof{padding:6px 42px 6px 6px}.replist{grid-template-columns:1fr}.steps span{font-size:11.5px}}
