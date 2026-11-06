@@ -3,19 +3,19 @@
   --bg:#f5f8f6;--panel:#fff;--ink:#16251e;--mute:#62766b;--line:#e0e8e3;
   --g:#1d6b43;--gd:#14502f;--gs:#e3f1e9;--gold:#c8962e;--goldsoft:#fbf1da;--blue:#2b6cb0;
   --warn:#9a5b00;--warnbg:#fff4de;--err:#b42318;
-  --roof:#e9e4d8;--pan:#27406b;--logo-vein:#fff;
+  --roof:#e6d9bd;--pan:#1f4a9a;--logo-vein:#fff;
   --navbg:#fff;--navink:#16251e;--navon:#e3f1e9;--navonink:#1d6b43;
   color-scheme:light;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#0c0f0d;--panel:#141a17;--ink:#e8f1ec;--mute:#8da096;--line:#25302b;
   --g:#3c9c66;--gd:#2d7a4f;--gs:#1b2e24;--gold:#e0b04a;--goldsoft:#2b2411;--blue:#6aa7e6;
-  --warn:#f5b546;--warnbg:#2b2411;--err:#f97066;--roof:#3a3a35;--pan:#4a6fb0;--logo-vein:#141a17;
+  --warn:#f5b546;--warnbg:#2b2411;--err:#f97066;--roof:#4a4232;--pan:#4f7fd6;--logo-vein:#141a17;
   --navbg:#101613;--navink:#e8f1ec;--navon:#1b2e24;--navonink:#6fcf97;color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0c0f0d;--panel:#141a17;--ink:#e8f1ec;--mute:#8da096;--line:#25302b;
   --g:#3c9c66;--gd:#2d7a4f;--gs:#1b2e24;--gold:#e0b04a;--goldsoft:#2b2411;--blue:#6aa7e6;
-  --warn:#f5b546;--warnbg:#2b2411;--err:#f97066;--roof:#3a3a35;--pan:#4a6fb0;--logo-vein:#141a17;
+  --warn:#f5b546;--warnbg:#2b2411;--err:#f97066;--roof:#4a4232;--pan:#4f7fd6;--logo-vein:#141a17;
   --navbg:#101613;--navink:#e8f1ec;--navon:#1b2e24;--navonink:#6fcf97;color-scheme:dark}
 .role-engineer{--navbg:#0f2a1e;--navink:#d9ece2;--navon:rgba(255,255,255,.12);--navonink:#fff;--logo-vein:#0f2a1e}
 *{box-sizing:border-box}
@@ -157,7 +157,7 @@ details.faq{border:1px solid var(--line);border-radius:12px;padding:12px 14px;ma
   @page{margin:14mm}
   body{background:#fff;color:#000}.app{display:none!important}
   #report{display:block!important;font-size:12.5px;color:#000}#report .rgrid{grid-template-columns:repeat(3,1fr)}
-  #report .tag{border:1px solid #999;background:#fff;color:#000}#report svg{max-width:100%;height:auto;--roof:#e9e4d8;--pan:#27406b;--mute:#555;--line:#bbb;--g:#1d6b43}
+  #report .tag{border:1px solid #999;background:#fff;color:#000}#report svg{max-width:100%;height:auto;--roof:#e6d9bd;--pan:#1f4a9a;--mute:#555;--line:#bbb;--g:#1d6b43}
   #report .tblwrap{overflow:visible}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}

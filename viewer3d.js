@@ -12,9 +12,14 @@
     el.appendChild(r.domElement);
     r.domElement.style.display = 'block';
 
+    r.shadowMap.enabled = true; r.shadowMap.type = T.PCFSoftShadowMap;
     var sc = new T.Scene(), cam = new T.PerspectiveCamera(40, 1, 0.1, 2000);
-    sc.add(new T.HemisphereLight(0xffffff, 0x8a8068, 0.85));
-    var sun = new T.DirectionalLight(0xffffff, 0.8); sun.position.set(30, 60, 25); sc.add(sun);
+    sc.fog = new T.Fog(0xf0d9b0, 120, 420);
+    sc.add(new T.HemisphereLight(0xffe9c4, 0x6b5a45, 0.7));
+    var sun = new T.DirectionalLight(0xffd7a0, 1.0); sun.position.set(40, 70, 30);
+    sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+    var sh = sun.shadow.camera; sh.left = -90; sh.right = 90; sh.top = 90; sh.bottom = -90; sh.near = 1; sh.far = 300;
+    sc.add(sun);
 
     var st = { az: -0.75, el: 0.55, dist: 40, h: 8, auto: true, alive: true, grp: null, key: '' };
     var drag = null;
@@ -25,29 +30,41 @@
       if (st.grp) { sc.remove(st.grp); st.grp.traverse(function (o) { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); }
       var g = new T.Group(), W = R.W, L = R.L;
       var H = (root.Calc.TYPES[R.type] || { height: 8 }).height; st.h = H;
-      function box(w, h, d, c, x, y, z) { var m = new T.Mesh(new T.BoxGeometry(w, h, d), mat(c)); m.position.set(x, y, z); g.add(m); return m; }
+      function box(w, h, d, c, x, y, z) { var m = new T.Mesh(new T.BoxGeometry(w, h, d), mat(c)); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; g.add(m); return m; }
 
-      var gs = Math.max(W, L) * 3 + 60;
-      var ground = new T.Mesh(new T.PlaneGeometry(gs, gs), mat(0xcdbf9f, 1)); ground.rotation.x = -Math.PI / 2; g.add(ground);
-      box(W, H, L, 0xe8e2d4, 0, H / 2, 0);
-      box(W + 0.4, 0.4, L + 0.4, 0xd5cfc0, 0, H + 0.2, 0);
-      var py = H + 0.85, pc = 0xdcd6c6;
+      // أرض مكعبات (طابع فوكسل): بلاطات رملية متبادلة اللون
+      var tile = 4, n = Math.ceil((Math.max(W, L) * 2 + 40) / tile), cnt = n * n;
+      var gm = new T.InstancedMesh(new T.BoxGeometry(tile, 0.5, tile), mat(0xffffff, 1), cnt), m4g = new T.Matrix4(), col = new T.Color(), k = 0;
+      for (var i = 0; i < n; i++) for (var j = 0; j < n; j++) {
+        m4g.setPosition((i - n / 2 + 0.5) * tile, -0.25, (j - n / 2 + 0.5) * tile); gm.setMatrixAt(k, m4g);
+        gm.setColorAt(k++, col.setHex(((i + j) % 2) ? 0xd9c49a : 0xcfb88b));
+      }
+      gm.receiveShadow = true; g.add(gm);
+
+      // مبنى من كتل: جدار + حواف سطح + نوافذ
+      box(W, H, L, 0xe6d9bd, 0, H / 2, 0);
+      box(W + 0.4, 0.4, L + 0.4, 0xb9a47c, 0, H + 0.2, 0);
+      var py = H + 0.85, pc = 0xcdb98f;
       box(W + 0.4, 0.9, 0.25, pc, 0, py, L / 2 + 0.07); box(W + 0.4, 0.9, 0.25, pc, 0, py, -L / 2 - 0.07);
       box(0.25, 0.9, L + 0.4, pc, W / 2 + 0.07, py, 0); box(0.25, 0.9, L + 0.4, pc, -W / 2 - 0.07, py, 0);
       var floors = Math.max(1, Math.round(H / 3.5)), wc = Math.max(2, Math.floor(W / 4));
-      for (var f = 0; f < floors; f++) for (var c = 0; c < wc; c++) box(1.4, 1.4, 0.1, 0x3a5068, -W / 2 + (c + 0.5) * W / wc, 1.8 + f * 3.3, L / 2 + 0.05);
+      for (var f = 0; f < floors; f++) for (var c = 0; c < wc; c++) box(1.4, 1.4, 0.2, 0x4a6b8a, -W / 2 + (c + 0.5) * W / wc, 1.8 + f * 3.3, L / 2 + 0.05);
 
-      // نخيل للديكور
+      // نخيل من مكعبات
       var spots = [[-W / 2 - 4, L / 2 + 4], [W / 2 + 4, L / 2 + 5], [-W / 2 - 5, -L / 4], [W / 2 + 5, -L / 3]];
       spots.forEach(function (p) {
-        var trunk = new T.Mesh(new T.CylinderGeometry(0.2, 0.3, 5, 6), mat(0x7a5a3a)); trunk.position.set(p[0], 2.5, p[1]); g.add(trunk);
-        var top = new T.Mesh(new T.SphereGeometry(1.8, 8, 6), mat(0x3f7d4a)); top.scale.y = 0.55; top.position.set(p[0], 5.3, p[1]); g.add(top);
+        for (var y = 0; y < 5; y++) box(0.5, 1, 0.5, 0x8a5a2b, p[0], 0.5 + y, p[1]);
+        [[1,0],[-1,0],[0,1],[0,-1]].forEach(function (d) {
+          box(1.4, 0.4, 1.4, 0x3f8a3c, p[0] + d[0] * 1.1, 5.4, p[1] + d[1] * 1.1);
+          box(1.2, 0.4, 1.2, 0x56a64a, p[0] + d[0] * 2.1, 5.0, p[1] + d[1] * 2.1);
+        });
+        box(1.4, 0.6, 1.4, 0x56a64a, p[0], 5.8, p[1]);
       });
 
       var on = R.slots.filter(function (q) { return q.st === 'on'; });
       if (on.length) {
         var A = root.Calc.DEFAULTS, pn = R.panel, tl = R.tilt * Math.PI / 180;
-        var im = new T.InstancedMesh(new T.BoxGeometry(pn.wid, 0.05, pn.len), mat(0x1d3a78, 0.35, 0.4), on.length);
+        var im = new T.InstancedMesh(new T.BoxGeometry(pn.wid, 0.08, pn.len), mat(0x1f4a9a, 0.3, 0.5), on.length); im.castShadow = true; im.receiveShadow = true;
         var m4 = new T.Matrix4(), q = new T.Quaternion().setFromEuler(new T.Euler(tl, 0, 0)), s1 = new T.Vector3(1, 1, 1);
         var gridW = R.cols * R.pitchX - A.gap, x0 = (W - gridW) / 2, gridH = (R.rows - 1) * R.pitchY + R.fp, y0 = A.margin + ((L - 2 * A.margin) - gridH) / 2;
         on.forEach(function (sl, i) {
@@ -56,7 +73,7 @@
         });
         im.instanceMatrix.needsUpdate = true; g.add(im);
       }
-      box(0.7, 0.9, 0.25, 0x2f7a4f, -W / 2 + 1.2, 1.3, L / 2 + 0.2);
+      box(0.7, 0.9, 0.25, 0x2f9a5f, -W / 2 + 1.2, 1.3, L / 2 + 0.2);
       if (R.bat) box(0.8, 1.3, 0.45, 0x2b6cb0, -W / 2 + 2.6, 1.5, L / 2 + 0.3);
       st.grp = g; sc.add(g);
       var key = W + 'x' + L;
