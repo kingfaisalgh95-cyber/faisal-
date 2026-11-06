@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>شغف الطاقة</title>
+<meta name="description" content="منصة شغف الطاقة لتصميم أنظمة الطاقة الشمسية: مساحة للعميل ومساحة للمهندسين والشركات.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app" id="root" dir="rtl" lang="ar">
+  <aside class="nav" aria-label="Main">
+    <a class="logo" href="#dashboard">
+      <svg width="38" height="38" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19C5 10 11 4 20 4c0 9-6 15-15 15z" fill="var(--g)"/><path d="M5 19L14 10" stroke="var(--logo-vein)" stroke-width="1.5" fill="none"/></svg>
+      <span><b id="brandName"></b><small>Shaqaf Energy</small></span>
+    </a>
+    <nav id="links"></nav>
+    <p class="sidetag" id="tagline"></p>
+  </aside>
+  <div class="content">
+    <header class="topbar">
+      <span class="slogan" id="slogan"></span>
+      <span class="ctrls">
+        <label for="roleSel" id="roleLab"></label>
+        <select id="roleSel"></select>
+        <button type="button" id="langBtn" class="btn ghost small"></button>
+        <span class="who" id="who"></span>
+      </span>
+    </header>
+    <div class="body" id="body">
+      <main id="view" tabindex="-1"></main>
+      <aside id="sum" class="sumcol" aria-label="Summary"></aside>
+    </div>
+  </div>
+</div>
+<section id="report" aria-hidden="true"></section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="calc.js"></script>
+<script src="store.js"></script>
+<script src="i18n.js"></script>
+<script src="viewer3d.js"></script>
+<script src="app.js"></script>
+<script src="customer.js"></script>
+<script src="engineer.js"></script>
+</body>
+</html>
