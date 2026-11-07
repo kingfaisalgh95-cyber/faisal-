@@ -140,7 +140,7 @@
     acBtuPerTon: { value: 12000, unit: 'BTU/h', status: 'derived', note: 'Definition of one refrigeration ton.' },
     acSeason: { winter: 0.15, spring: 0.55, summer: 1, autumn: 0.55, status: 'assumption', note: 'Relative cooling hours per season versus summer.' },
     acLoadFactor: { value: 0.7, status: 'assumption', note: 'Average compressor load while the unit is on (cycling).' },
-    baseLoadKwh: { villa: 450, house: 350, company: 800, admin: 900, warehouse: 500, factory: 1500, other: 600, unit: 'kWh/month', status: 'assumption', note: 'Non-AC load (lighting, appliances, equipment) added when consumption is estimated from AC units.' },
+    baseLoadKwh: { villa: 450, house: 350, building: 1200, company: 800, admin: 900, warehouse: 500, factory: 1500, other: 600, unit: 'kWh/month', status: 'assumption', note: 'Non-AC load (lighting, appliances, equipment) added when consumption is estimated from AC units.' },
     occupancy: { low: 0.7, normal: 1, high: 1.25, cap: 0.95, status: 'assumption', note: 'Multiplier on the default daylight share of consumption: low = nobody home / closed in daytime, high = occupied all day.' },
     azimuth: { lossAt90: 0.08, lossAt180: 0.2, status: 'assumption', note: 'Annual yield loss when panels face 90 deg / 180 deg away from south (quadratic up to 90 deg, linear to 180). Approximation for low tilt; to be replaced by a PVGIS run per site.' },
     scenarioKwh: { values: [1000, 2500, 5000], unit: 'kWh/month', status: 'assumption', note: 'What-if monthly consumption levels shown when the customer gives no consumption data. They are scenarios, not estimates of the customer.' },

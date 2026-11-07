@@ -34,5 +34,16 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   await pg.reload(); await pg.waitForTimeout(800); ok(await pg.$('#rp6') !== null, 'report persists after reload');
   await pg.click('#langBtn2'); await pg.waitForTimeout(800);
   ok(!/\b[a-z]{1,4}\.[a-zA-Z0-9]{1,12}\b(?=[^a-z])/.test((await pg.evaluate(() => document.querySelector('main').innerText)).replace(/\d+\.\d+/g, '').replace(/[A-Za-z]+\.(js|png)/g, '').replace(/kWh|kWp/g, '')) || true, 'EN renders');
+
+  // PDF/print report must carry the same figures as the screen
+  { const c2 = await b.newContext({ viewport: { width: 1366, height: 800 } }); const p2 = await c2.newPage();
+    await p2.addInitScript(() => { window.print = () => {}; });
+    await p2.goto(BASE); await p2.click('#startCta'); await p2.selectOption('#f-city', 'riyadh'); await p2.fill('#f-len', '15'); await p2.fill('#f-wid', '10'); await p2.fill('#f-bill', '600');
+    await p2.click('#genBtn'); await p2.waitForSelector('#pdfBtn', { timeout: 15000 }); await p2.waitForTimeout(1000); await p2.click('#pdfBtn'); await p2.waitForTimeout(1500);
+    const rep = await p2.evaluate(() => document.querySelector('#report').innerText); const scr = await p2.evaluate(() => document.querySelector('main').innerText);
+    const nums = s => (s.match(/\d[\d,٬.]{3,}/g) || []);
+    const kp = await p2.evaluate(() => [...document.querySelectorAll('main .kpis, main #rp5, main #rp4')].map(e => e.innerText).join(' ')); const key = nums(kp).filter(x => /^\d{1,3}[,٬]\d{3}$/.test(x)); const miss = key.filter(k => !rep.includes(k));
+    ok(rep.length > 500 && key.length > 5 && miss.length / key.length < 0.2, 'PDF report carries the on-screen figures (missing ' + miss.length + '/' + key.length + ')');
+    await c2.close(); }
   await b.close(); console.log(fails ? fails + ' FAILED' : 'ALL PASS'); process.exit(fails ? 1 : 0);
 })();

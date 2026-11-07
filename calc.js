@@ -32,14 +32,14 @@
     // tariff regime + export
     tariffSet: 'y2027',
     exportMode: 'self',       // 'self' (direct use + surplus credit, default: conservative) | 'net' (kWh netting, only if the utility applies it)
-    selfUse: { villa: 0.45, house: 0.45, company: 0.8, admin: 0.8, warehouse: 0.75, factory: 0.9, other: 0.6 }, // ASSUMPTION: share of consumption falling in daylight hours (no load profile given)
+    selfUse: { villa: 0.45, house: 0.45, building: 0.5, company: 0.8, admin: 0.8, warehouse: 0.75, factory: 0.9, other: 0.6 }, // ASSUMPTION: share of consumption falling in daylight hours (no load profile given)
     surplusCredit: 0,         // SAR/kWh; the SERA proposal (0.07 / 0.05) is not in force
     vatRecoverable: { residential: false, commercial: true, industrial: true }
   };
 
-  var CLASS_OF = { villa: 'residential', house: 'residential', company: 'commercial', admin: 'commercial', warehouse: 'commercial', factory: 'industrial', other: 'commercial' };
+  var CLASS_OF = { villa: 'residential', house: 'residential', building: 'residential', company: 'commercial', admin: 'commercial', warehouse: 'commercial', factory: 'industrial', other: 'commercial' };
   var TYPES = {
-    villa: { kind: 'residential', height: 7 }, house: { kind: 'residential', height: 6 }, company: { kind: 'commercial', height: 12 }, admin: { kind: 'commercial', height: 14 }, other: { kind: 'commercial', height: 8 },
+    villa: { kind: 'residential', height: 7 }, house: { kind: 'residential', height: 6 }, building: { kind: 'residential', height: 15 }, company: { kind: 'commercial', height: 12 }, admin: { kind: 'commercial', height: 14 }, other: { kind: 'commercial', height: 8 },
     warehouse: { kind: 'commercial', height: 8 }, factory: { kind: 'industrial', height: 10 }
   };
   function tariffTable(setKey) {

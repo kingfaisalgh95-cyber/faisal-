@@ -143,6 +143,33 @@ t('new types: house is residential, admin/other are commercial; each has base lo
 });
 t('approximate roof dimensions add 5 points to the range', () => { const a = C.design(Object.assign({}, base, { azDev: 0, shade: 'none' })), b = C.design(Object.assign({}, base, { azDev: 0, shade: 'none', dimsApprox: true })); near(b.conf.rangePct - a.conf.rangePct, 5, 1e-9); });
 
+
+console.log('Acceptance matrix (8 cases)');
+const CASES = [
+  ['small villa', { type: 'villa', city: 'riyadh', len: 12, wid: 8, cons: 1200, mode: 'kwh' }],
+  ['medium house', { type: 'house', city: 'jeddah', len: 15, wid: 10, cons: 2500, mode: 'kwh' }],
+  ['large house', { type: 'villa', city: 'dammam', len: 30, wid: 18, cons: 6000, mode: 'kwh' }],
+  ['commercial', { type: 'company', city: 'riyadh', len: 40, wid: 25, cons: 15000, mode: 'kwh' }],
+  ['no bill (AC only)', { type: 'villa', city: 'madinah', len: 20, wid: 12, mode: 'ac', ac: { rows: [{ units: 4, tons: 2 }], hours: 10 } }],
+  ['no consumption data', { type: 'building', city: 'abha', len: 20, wid: 15, mode: 'none' }],
+  ['obstacles', { type: 'villa', city: 'riyadh', len: 20, wid: 12, cons: 2500, mode: 'kwh', shade: 'some', obs: [{ x: 2, y: 2, w: 4, h: 3 }] }],
+  ['different region', { type: 'factory', city: 'tabuk', len: 50, wid: 30, cons: 30000, mode: 'kwh' }]
+];
+CASES.forEach(([name, p]) => t('case: ' + name, () => {
+  const R = C.design(Object.assign({ tilt: 10, system: 'grid' }, p)); assert.ok(R.ok, 'design ok');
+  near(R.W * R.L, p.len * p.wid, 1e-6);                                   // roof area
+  const placed = R.slots.filter(s => s.st === 'on').length; assert.strictEqual(placed, R.n); // panel count matches layout
+  assert.ok(R.n <= R.avail, 'panels fit');                                  // never more than fit
+  near(R.kwp, R.n * R.panel.watt / 1000, 1e-9);                             // capacity = panels x watt
+  assert.ok(R.kwp * 1000 / (R.invKw * 1000) <= 1.35 && R.kwp / R.invKw >= 0.6, 'DC/AC ' + (R.kwp / R.invKw).toFixed(2)); // inverter match
+  const A = C.audit(R); const sumProd = A.production.rows.reduce((a, r) => a + r.prod, 0); near(sumProd, R.prod, 1e-6 * R.prod + 1e-6); // audit == shown
+  const f = R.flows; near(f.direct + f.exported, f.production, 1e-6 * f.production + 1e-6); // flows balance
+  assert.ok(f.direct <= f.production + 1e-6 && f.direct <= f.consumption + 1e-6, 'direct use bounded');
+  if (R.noCons) assert.strictEqual(R.scen.length, 3); else assert.ok(R.save <= R.prod * 0.35 * 1.15 + 1e-6, 'savings not above production at top tariff'); // savings != production value
+  assert.ok(R.cost > 0 && Math.abs(Object.values(R.parts).reduce((a, x) => a + x, 0) - R.cost) < 1, 'cost parts sum to total');
+  assert.ok(!(R.payback < 0), 'payback sane');
+}));
+
 console.log('Data provenance');
 t('every tariff class cites a source that exists', () => Object.values(D.TARIFF.sets).forEach(s => Object.values(s.classes).forEach(c => { assert.strictEqual(c.status, 'sourced'); c.src.forEach(k => assert.ok(D.SOURCES[k], k)); })));
 t('every verified equipment record cites a source that exists', () => D.EQUIP.filter(e => e.verified).forEach(e => assert.ok(D.SOURCES[e.source], e.id)));

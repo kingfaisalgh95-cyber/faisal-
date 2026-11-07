@@ -69,7 +69,7 @@
   };
 
   // ----- page 2: project information (one page, three groups) -----
-  var TYPES7 = ['house', 'villa', 'company', 'factory', 'warehouse', 'admin', 'other'];
+  var TYPES7 = ['house', 'villa', 'building', 'company', 'factory', 'warehouse', 'admin', 'other'];
   function round1(x) { return Math.round(x * 10) / 10; }
   function newDraft() {
     var s = S();
@@ -122,7 +122,7 @@
     var pct = completeness(p);
     var h = '<div class="formpage"><div class="fhead"><h1>' + t('form.t') + '</h1><p class="note">' + t('form.sub') + '</p></div>';
     // group 1
-    h += '<section class="card fgrp"><h3><i>1</i>' + t('g1.t') + '</h3><label>' + t('f.type') + '</label><div class="types seven" role="group" aria-label="' + t('f.type') + '">' + TYPES7.map(function (k) { return '<button type="button" data-type="' + k + '" aria-pressed="' + (p.type === k) + '">' + App.icon(k === 'house' || k === 'villa' ? 'home' : (k === 'factory' || k === 'warehouse') ? 'box' : 'list') + '<span>' + t('type.' + k) + '</span></button>'; }).join('') + '</div>' +
+    h += '<section class="card fgrp"><h3><i>1</i>' + t('g1.t') + '</h3><label>' + t('f.type') + '</label><div class="types seven" role="group" aria-label="' + t('f.type') + '">' + TYPES7.map(function (k) { return '<button type="button" data-type="' + k + '" aria-pressed="' + (p.type === k) + '">' + App.icon(k === 'house' || k === 'villa' || k === 'building' ? 'home' : (k === 'factory' || k === 'warehouse') ? 'box' : 'list') + '<span>' + t('type.' + k) + '</span></button>'; }).join('') + '</div>' +
       App.fld(t('f.pname'), App.inp('name', p, { type: 'text', ph: '' })) +
       '<div class="row">' + App.fld(t('f.city'), App.sel('city', p, [['', t('f.cityPick')]].concat(App.cityOpts())) + fe(errs, 'city')) + App.fld(t('f.roofType'), App.sel('roofType', p, ['concrete', 'metal', 'ground', 'other'].map(function (k) { return [k, t('roof.' + k)]; })), t('roof.note')) + '</div>' +
       '<button class="btn ghost small" type="button" id="geoBtn">' + t('geo.btn') + '</button><p class="note" id="geoMsg" role="status">' + (p.geoMsg || t('geo.note')) + '</p></section>';
