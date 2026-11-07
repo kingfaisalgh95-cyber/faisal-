@@ -140,9 +140,8 @@
     [1, 5, 10, 15, 20, 25].forEach(function (yr) { if (yr <= d.length) s += '<text x="' + x(yr - 1) + '" y="' + (H - 6) + '" text-anchor="middle" font-size="11" fill="var(--mute)">' + yr + '</text>'; });
     return '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(t('fin.chartAlt')) + '">' + s + '</svg>';
   }
-  var SHAPE = [0.068, 0.073, 0.086, 0.090, 0.096, 0.096, 0.095, 0.093, 0.086, 0.080, 0.071, 0.066];
   function monthlyChart(R) {
-    var W = 560, H = 210, Lm = 46, B = 24, T = 12, pw = W - Lm - 10, ph = H - T - B, vals = SHAPE.map(function (f) { return R.prod * f; }), cons = R.monthly, max = Math.max(cons, Math.max.apply(null, vals)) * 1.1;
+    var W = 560, H = 210, Lm = 46, B = 24, T = 12, pw = W - Lm - 10, ph = H - T - B, vals = R.pro.months, cons = R.monthly, max = Math.max(cons, Math.max.apply(null, vals)) * 1.1;
     var y = function (v) { return T + ph - v / max * ph; }, bw = pw / 12 * 0.6, s = '';
     vals.forEach(function (v, i) { var x = Lm + (i + 0.2) * pw / 12; s += '<rect x="' + x.toFixed(1) + '" y="' + y(v).toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + (T + ph - y(v)).toFixed(1) + '" fill="var(--g)" rx="2"/><text x="' + (x + bw / 2).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle" font-size="10" fill="var(--mute)">' + (i + 1) + '</text>'; });
     s += '<line x1="' + Lm + '" x2="' + (W - 10) + '" y1="' + y(cons) + '" y2="' + y(cons) + '" stroke="var(--gold)" stroke-width="2" stroke-dasharray="6 4"/>';
@@ -265,17 +264,52 @@
       '<div class="card"><h3>' + t('sum.cost') + '</h3><div class="big">' + money(R.cost) + '</div>' + tag('est') + '<p class="note">' + t('sum.costNote') + '</p></div>' +
       '<div class="card"><h3>' + t('sum.save') + '</h3><div class="sumrow"><div><div class="big green">' + money(R.save) + '</div>' + tag('est') + '</div><div class="ring" style="--p:' + Math.min(100, Math.round(R.coverage * 100)) + '" role="img" aria-label="' + Math.round(R.coverage * 100) + '%"><b>' + Math.round(R.coverage * 100) + '%</b></div></div><p class="note">' + t('sum.ring') + '</p></div>' +
       '<div class="card"><h3>' + t('sum.prod') + '</h3><div class="big">' + fmt(R.prod) + ' kWh <small>/ ' + t('yr') + '</small></div>' + tag('est') + '<div class="bar" aria-hidden="true"><i style="width:' + Math.min(100, Math.round(R.coverage * 100)) + '%"></i></div><p class="note">' + t('sum.cover', { c: Math.round(R.coverage * 100) }) + '</p>' +
-      kv(t('fin.payback'), R.payback == null ? '>' + A().life : R.payback.toFixed(1) + ' ' + t('yr')) + kv(t('sum.co2'), R.co2.toFixed(1) + ' ' + t('sum.t')) + '<p class="note">' + t('disclaimer') + '</p></div>';
+      '<p class="note">' + t('sum.range', { lo: fmt(R.prodLow), hi: fmt(R.prod) }) + '</p>' +
+      kv(t('fin.payback'), paybackText(R)) + kv(t('sum.co2'), R.co2.toFixed(1) + ' ' + t('sum.t')) + '<p class="note">' + t('disclaimer') + '</p></div>';
   }
-  function assumptionRows(R) {
-    var a = A();
-    return [[t('as.yield'), fmt(R.yieldKwh) + ' kWh/kWp'], [t('as.degr'), a.degr + ' %'], [t('as.esc'), a.esc + ' %'], [t('as.om'), a.om + ' %'], [t('as.disc'), a.disc + ' %'], [t('as.repl'), a.replPct + ' % @ ' + a.replYear], [t('as.life'), a.life + ' ' + t('yr')], [t('as.tilt'), R.tilt + '°'], [t('as.spacing'), R.pitchY.toFixed(2) + ' m'], [t('as.cost'), fmt(R.cost / R.kwp) + ' ' + t('sar') + '/kWp']];
+  function paybackText(R) {
+    var life = A().life, hi = R.finLow && R.finLow.payback;
+    if (R.payback == null) return '>' + life + ' ' + t('yr');
+    return R.payback.toFixed(1) + (hi != null ? ' – ' + hi.toFixed(1) : ' – >' + life) + ' ' + t('yr');
+  }
+  function stTag(k) { return '<span class="tag st-' + k + '">' + t('st.' + k) + '</span>'; }
+  function srcLinks(ids) {
+    var D = C.DATA; return (ids || []).map(function (id) { var s = D.SOURCES[id]; return s ? '<a href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(s.title) + '</a> <small>(' + esc(s.kind) + ')</small>' : ''; }).join('<br>');
+  }
+  // Every number the customer sees is traceable here: value, status (sourced / derived / assumption), source and date.
+  function assumptionTable(R) {
+    var a = A(), D = C.DATA, city = D.CITY[R.cityKey] || D.CITY.riyadh, pf = R.perf, pp = pf.parts, pct = function (v) { return (v * 100).toFixed(1) + ' %'; };
+    var set = D.TARIFF.sets[R.tariffSet] || D.TARIFF.sets.y2027, tc = set.classes[C.CLASS_OF[R.type]], lang = S.lang;
+    var eq = function (e) { return e.verified ? ['sourced', [e.source]] : ['assumption', []]; };
+    var pe = eq(R.panel), ie = eq(R.inv);
+    var rows = [
+      [t('as2.irr'), t('season.summer') + ' ' + city.summer + ' · ' + t('season.autumn') + ' ' + city.autumn + ' · ' + t('season.winter') + ' ' + city.winter + ' · ' + t('season.spring') + ' ' + city.spring + ' (' + t('as2.irrUnit', { tilt: city.tiltOpt }) + ')', 'sourced', ['profilesolar', 'kacare'], t('as2.irrNote')],
+      [t('as2.temp'), pct(pp.temperature), 'derived', [], t('as2.tempNote', { tc: R.panel.tcPmax, t: a.cellTempAvgC })],
+      [t('as2.soil'), pct(pp.soiling), 'assumption', [], ''],
+      [t('as2.mis'), pct(pp.mismatchDc) + ' + ' + pct(pp.wiringAc) + ' + ' + pct(pp.availability), 'assumption', [], ''],
+      [t('as2.invEff'), pct(pf.invEff), R.inv.effEuro != null ? 'sourced' : 'assumption', R.inv.verified ? [R.inv.source] : [], ''],
+      [t('as2.pr'), pct(pf.pr), 'derived', [], t('as2.prNote')],
+      [t('as2.yield'), fmt(R.yieldKwh) + ' kWh/kWp · ' + t('as2.range', { lo: fmt(R.prodLow / R.kwp), hi: fmt(R.prod / R.kwp) }), 'derived', [], t('as2.yieldNote', { u: a.uncertaintyPct })],
+      [t('as2.tariff'), fmt(tc.rate1 * 100) + ' / ' + (tc.limit >= 1e9 ? '—' : fmt(tc.rate2 * 100)) + ' ' + t('as2.halala') + (tc.limit >= 1e9 ? '' : ' (' + t('as2.tierAt', { k: fmt(tc.limit) }) + ')') + ' — ' + esc(set.label[lang] || set.label.ar), 'sourced', tc.src, D.TARIFF.caveat[lang] || D.TARIFF.caveat.ar],
+      [t('as2.vat'), '15 % (' + (a.vatRecoverable[C.CLASS_OF[R.type]] ? t('as2.vatRec') : t('as2.vatNotRec')) + ')', 'sourced', ['slg'], ''],
+      [t('as2.export'), a.exportMode === 'net' ? t('as2.exportNet') : t('as2.exportSelf', { c: a.surplusCredit }), 'assumption', ['pvtech', 'sera'], t('as2.exportNote')],
+      [t('as2.panel'), esc(R.panel.name) + ' — ' + R.panel.watt + ' W' + (R.panel.eff ? ', ' + R.panel.eff + ' %' : ''), pe[0], pe[1], R.panel.verified ? '' : t('rep.unverified')],
+      [t('as2.inv'), esc(R.inv.name) + ' × ' + R.invQty, ie[0], ie[1], R.inv.verified ? '' : t('rep.unverified')],
+      [t('as2.degr'), (R.panel.degrYear1 != null ? R.panel.degrYear1 : a.degrYear1) + ' % ' + t('as2.then') + ' ' + (R.panel.degrAnnual != null ? R.panel.degrAnnual : a.degr) + ' % / ' + t('yr'), R.panel.verified ? 'sourced' : 'assumption', R.panel.verified ? [R.panel.source] : [], ''],
+      [t('as2.price'), fmt(R.cost / R.kwp) + ' ' + t('sar') + '/kWp', 'assumption', [], D.PRICES.note[lang] || D.PRICES.note.ar],
+      [t('as2.fin'), t('as2.finVals', { om: a.om, d: a.disc, e: a.esc, l: a.life, ry: a.replYear, rp: a.replPct }), 'assumption', [], ''],
+      [t('as2.load'), t('as2.loadVal'), 'assumption', [], '']
+    ];
+    return '<div class="aslist">' + rows.map(function (r) {
+      return '<div class="asrow"><div class="ashead"><span>' + r[0] + '</span>' + stTag(r[2]) + '</div><div class="asval">' + r[1] + '</div>' +
+        (r[4] ? '<div class="asnote">' + r[4] + '</div>' : '') + (r[3] && r[3].length ? '<div class="assrc">' + srcLinks(r[3]) + '</div>' : '') + '</div>';
+    }).join('') + '</div><p class="note">' + t('as2.date', { d: D.RETRIEVED }) + ' · ' + t('as2.version', { v: R.dataVersion }) + '</p>';
   }
   function finTable(R) {
     var a = A(), f = R.fin;
-    return '<div class="stats">' + stat(t('fin.price'), money(R.cost), 'est') + stat(t('fin.prod'), fmt(R.prod) + ' kWh', 'est') + stat(t('fin.save1'), money(R.save), 'est') + stat(t('fin.payback'), R.payback == null ? '>' + a.life : R.payback.toFixed(1) + ' ' + t('yr'), 'est') + stat(t('fin.lifeGross'), money(f.lifetimeGross), 'est') + stat(t('fin.lifeNet'), money(f.lifetimeNet), 'est') + '</div>' +
+    return '<div class="stats">' + stat(t('fin.price'), money(R.cost), 'est') + stat(t('fin.prod'), fmt(R.prod) + ' kWh', 'est') + stat(t('fin.save1'), money(R.save), 'est') + stat(t('fin.payback'), paybackText(R), 'est') + stat(t('fin.lifeGross'), money(f.lifetimeGross), 'est') + stat(t('fin.lifeNet'), money(f.lifetimeNet), 'est') + '</div>' +
       kv(t('fin.npv', { r: a.disc }), money(f.npv), 'est') + kv(t('fin.lcoe'), f.lcoe.toFixed(3) + ' ' + t('sar') + '/kWh', 'est') + cashChart(R) + '<p class="note">' + t('fin.chartNote') + '</p>' +
-      '<details class="faq"><summary>' + t('fin.assump') + '</summary><div class="tblwrap"><table><tbody>' + assumptionRows(R).map(function (r) { return '<tr><td>' + r[0] + '</td><td><b>' + r[1] + '</b></td></tr>'; }).join('') + '</tbody></table></div><p class="note">' + t('fin.formulas') + '</p></details>';
+      '<details class="faq" open><summary>' + t('as2.title') + '</summary>' + assumptionTable(R) + '<p class="note">' + t('fin.formulas') + '</p></details>';
   }
   function compTable(R, withCost) {
     return '<div class="tblwrap"><table><thead><tr><th>' + t('c.item') + '</th><th>' + t('c.spec') + '</th><th>' + t('c.qty') + '</th><th>' + t('c.power') + '</th>' + (withCost ? '<th>' + t('c.cost') + '</th>' : '') + '</tr></thead><tbody>' +
@@ -299,7 +333,7 @@
     var d = new Date().toLocaleDateString(S.lang === 'ar' ? 'ar-SA' : 'en-GB');
     var h = '<div class="rhead"><div><h1>' + t(tech ? 'rep.techTitle' : 'rep.title') + '</h1><div>' + esc(p.name || '-') + ' · ' + t('type.' + R.type) + ' · ' + cityName(R.cityKey) + ' · ' + t('sys.' + R.system) + '</div></div><div class="rbrand"><b>' + t('brand') + '</b><div>' + d + '</div></div></div>';
     h += '<div class="rstatus">' + tag('est') + (p.simulated ? ' ' + tag('sim') : '') + ' ' + (R.equipVerified ? tag('ver') : '<span class="tag usr">' + t('rep.unverified') + '</span>') + '</div>';
-    h += '<h2>' + t('rep.summary') + '</h2><div class="rgrid"><div><span>' + t('sum.kwp') + '</span><b>' + R.kwp.toFixed(1) + ' kWp</b></div><div><span>' + t('sum.panels') + '</span><b>' + R.n + '</b></div><div><span>' + t('sum.cost') + '</span><b>' + money(R.cost) + '</b></div><div><span>' + t('fin.prod') + '</span><b>' + fmt(R.prod) + ' kWh</b></div><div><span>' + t('fin.save1') + '</span><b>' + money(R.save) + '</b></div><div><span>' + t('fin.payback') + '</span><b>' + (R.payback == null ? '>' + A().life : R.payback.toFixed(1)) + ' ' + t('yr') + '</b></div></div>';
+    h += '<h2>' + t('rep.summary') + '</h2><div class="rgrid"><div><span>' + t('sum.kwp') + '</span><b>' + R.kwp.toFixed(1) + ' kWp</b></div><div><span>' + t('sum.panels') + '</span><b>' + R.n + '</b></div><div><span>' + t('sum.cost') + '</span><b>' + money(R.cost) + '</b></div><div><span>' + t('fin.prod') + '</span><b>' + fmt(R.prod) + ' kWh</b></div><div><span>' + t('fin.save1') + '</span><b>' + money(R.save) + '</b></div><div><span>' + t('fin.payback') + '</span><b>' + paybackText(R) + '</b></div></div>';
     h += '<h2 id="rep-plan">' + t('rep.layout') + '</h2><div class="rroof">' + roofSVG(R, p, {}) + '</div>';
     h += '<h2 id="rep-specs">' + t('rep.components') + '</h2>' + compTable(R, true);
     h += '<h2 id="rep-save">' + t('rep.financial') + '</h2>' + finTable(R);
@@ -348,7 +382,7 @@
   function copyText(txt, done) { try { navigator.clipboard.writeText(txt).then(done, done); } catch (e) { done(); } }
 
   var App = {
-    t: t, esc: esc, fmt: fmt, money: money, A: A, lib: lib, design: design, persist: persist, UI: UI, views: views, icon: icon, tag: tag, kv: kv, stat: stat,
+    t: t, esc: esc, fmt: fmt, money: money, A: A, lib: lib, design: design, persist: persist, UI: UI, views: views, icon: icon, tag: tag, kv: kv, stat: stat, paybackText: paybackText, assumptionTable: assumptionTable,
     inp: inp, sel: sel, chk: chk, fld: fld, cityOpts: cityOpts, cityName: cityName, bindFields: bindFields, warnList: warnList, errBox: errBox, roofSVG: roofSVG, flowSVG: flowSVG,
     cashChart: cashChart, monthlyChart: monthlyChart, viewerHTML: viewerHTML, bindViewer: bindViewer, showViewer: showViewer, summaryHTML: summaryHTML, setSummary: setSummary,
     finTable: finTable, compTable: compTable, electricalHTML: electricalHTML, bessHTML: bessHTML, reportHTML: reportHTML, go: go, route: route, armDelete: armDelete, copyText: copyText,

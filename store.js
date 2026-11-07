@@ -18,7 +18,21 @@
     var raw = null;
     try { raw = localStorage.getItem(KEY); } catch (e) { raw = mem; }
     if (raw) { try { S = Object.assign(blank(), JSON.parse(raw)); } catch (e) { S = blank(); } }
+    migrateData();
     return S;
+  }
+  // When the documented data set changes, drop stored copies of the OLD generic defaults (tariffs, price bands, generic equipment)
+  // so they cannot silently override the new sourced data. Anything the user added or edited themselves is kept.
+  var OLD_GENERIC = ['pv550', 'inv5h', 'inv10h', 'inv20g', 'inv50g', 'inv100g', 'bat10'];
+  function migrateData() {
+    var v = root.Calc && root.Calc.DATA_VERSION; if (!v || S.dataVersion === v) return;
+    if (S.assumptions) { ['tariffs', 'costBands', 'degr', 'esc', 'om', 'disc', 'replYear', 'replPct', 'life', 'battPerKwh'].forEach(function (k) { delete S.assumptions[k]; }); }
+    if (S.equipment) {
+      var keep = S.equipment.filter(function (e) { return OLD_GENERIC.indexOf(e.id) < 0; });
+      S.equipment = JSON.parse(JSON.stringify(root.Calc.DEF_EQUIP)).concat(keep);
+    }
+    (S.projects || []).forEach(function (p) { if (p.panelId === 'pv550') p.panelId = 'jkm580'; if (OLD_GENERIC.indexOf(p.inverterId) >= 0) { p.inverterId = ''; p.inverterQty = 0; } });
+    S.dataVersion = v;
   }
   function persist() {
     var s = JSON.stringify(S);
@@ -31,7 +45,7 @@
     return Object.assign({
       id: uid('p'), name: '', customerName: '', phone: '', kind: 'residential', type: 'villa', city: S.profile.city || 'riyadh', address: '',
       len: 20, wid: 10, obstacle: 0, mode: 'kwh', cons: 12000, system: 'grid', battery: { need: false, hours: 4, criticalKw: 3, arch: 'dc' },
-      panelId: 'pv550', inverterId: '', inverterQty: 0, tilt: 10, manual: false, disabled: [], dcLen: 30, acLen: 20,
+      panelId: 'jkm580', inverterId: '', inverterQty: 0, tilt: 10, manual: false, disabled: [], dcLen: 30, acLen: 20,
       simulated: false, createdAt: now(), status: 'draft'
     }, o || {});
   }

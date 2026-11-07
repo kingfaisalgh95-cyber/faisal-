@@ -102,7 +102,7 @@
 
   // ---------- engineering tools (standalone calculators) ----------
   function toolState() {
-    if (!UI.ts) UI.ts = { strings: { n: 30, panelId: 'pv550', invId: 'inv20g', qty: 1 }, cable: { kind: 'ac3', I: 30, L: 30, V: 400, drop: 2, pf: 1, factor: 1.25 }, bess: { criticalKw: 5, hours: 6, dod: 90, rte: 94, arch: 'dc', unitKwh: 10, unitKw: 5 } };
+    if (!UI.ts) UI.ts = { strings: { n: 30, panelId: 'jkm580', invId: 'hw15', qty: 1 }, cable: { kind: 'ac3', I: 30, L: 30, V: 400, drop: 2, pf: 1, factor: 1.25 }, bess: { criticalKw: 5, hours: 6, dod: 90, rte: 94, arch: 'dc', unitKwh: 10, unitKw: 5 } };
     return UI.ts;
   }
   function toolOut(k, st) {
