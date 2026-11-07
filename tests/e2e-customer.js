@@ -35,6 +35,15 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   await pg.click('#langBtn2'); await pg.waitForTimeout(800);
   ok(!/\b[a-z]{1,4}\.[a-zA-Z0-9]{1,12}\b(?=[^a-z])/.test((await pg.evaluate(() => document.querySelector('main').innerText)).replace(/\d+\.\d+/g, '').replace(/[A-Za-z]+\.(js|png)/g, '').replace(/kWh|kWp/g, '')) || true, 'EN renders');
 
+  // obstacles entered with sizes: out-of-bounds is rejected, valid one reaches the report
+  { const c3 = await b.newContext({ viewport: { width: 390, height: 844 } }); const p3 = await c3.newPage();
+    await p3.goto(BASE); await p3.click('#startCta'); await p3.selectOption('#f-city', 'riyadh'); await p3.fill('#f-len', '20'); await p3.fill('#f-wid', '12'); await p3.fill('#f-bill', '600');
+    await p3.evaluate(() => { document.querySelector('#moreD').open = true; }); await p3.click('[data-seg="obsAns"][data-val="yes"]'); await p3.click('#obAdd');
+    for (const [k, v] of [['w', 4], ['h', 3], ['x', 11], ['y', 2]]) await p3.fill('#f-obsRows-0-' + k, String(v));
+    await p3.click('#genBtn'); await p3.waitForTimeout(400); ok(await p3.$('#genBtn') !== null && await p3.$('#rp6') === null, 'obstacle outside the roof is rejected');
+    await p3.evaluate(() => { document.querySelector('#moreD').open = true; }); await p3.fill('#f-obsRows-0-x', '2'); await p3.click('#genBtn'); await p3.waitForSelector('#rp6', { timeout: 15000 });
+    ok(/عوائق|obstacle/i.test(await p3.evaluate(() => document.querySelector('main').innerText)), 'valid obstacle accepted and reflected in the report');
+    await c3.close(); }
   // PDF/print report must carry the same figures as the screen
   { const c2 = await b.newContext({ viewport: { width: 1366, height: 800 } }); const p2 = await c2.newPage();
     await p2.addInitScript(() => { window.print = () => {}; });

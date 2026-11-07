@@ -86,7 +86,8 @@
     if (p.dimsKnown === false) { var ar = Number(p.area) || 0; if (ar >= 9) { var l = Math.sqrt(ar / 1.5); p.len = round1(l); p.wid = round1(1.5 * l); } else { p.len = ''; p.wid = ''; } p.dimsApprox = true; }
     else { p.dimsApprox = false; p.area = (Number(p.len) > 0 && Number(p.wid) > 0) ? Math.round(p.len * p.wid) : ''; }
     p.shade = (p.obsAns === 'yes' || p.shadeAns === 'yes') ? 'some' : (p.obsAns === 'no' && p.shadeAns === 'no') ? 'none' : 'unknown';
-    p.obstacle = p.obsAns === 'yes' ? (Number(p.obsArea) || 0) : 0;
+    p.obs = p.obsAns === 'yes' ? (p.obsRows || []).map(function (r) { return { x: Number(r.x) || 0, y: Number(r.y) || 0, w: Number(r.w) || 0, h: Number(r.h) || 0 }; }).filter(function (o) { return o.w > 0 && o.h > 0; }) : [];
+    p.obstacle = (p.obsAns === 'yes' && !p.obs.length) ? (Number(p.obsArea) || 0) : 0;
     p.tilt = (p.tiltIn === '' || p.tiltIn == null) ? 10 : Number(p.tiltIn);
     p.system = p.sysChoice === 'suggest' ? 'grid' : p.sysChoice; if (!p.battery) p.battery = { hours: 4, criticalKw: 3, arch: 'dc' };
     if (p.system === 'offgrid') p.battery.need = true; else if (p.batChoice === 'yes') { p.battery.need = true; if (p.system === 'grid') p.system = 'hybrid'; } else p.battery.need = false;
@@ -106,6 +107,7 @@
     else { var okL = Number(p.len) >= 3 && Number(p.len) <= 300, okW = Number(p.wid) >= 3 && Number(p.wid) <= 300; if (!okL) e.len = t('err.dims2'); if (!okW) e.wid = t('err.dims2'); }
     if (kwh !== '' && kwh != null && !(Number(kwh) >= 1 && Number(kwh) <= 500000)) e.kwh = t('err.kwh');
     if (bill !== '' && bill != null && !(Number(bill) >= 1 && Number(bill) <= 5000000)) e.bill = t('err.kwh');
+    if (p.obsAns === 'yes' && p.dimsKnown !== false) (p.obsRows || []).forEach(function (r) { var w = Number(r.w) || 0, h = Number(r.h) || 0; if (w > 0 && h > 0 && ((Number(r.x) || 0) + w > Number(p.wid) + 0.01 || (Number(r.y) || 0) + h > Number(p.len) + 0.01)) e.obs = t('ob.err'); });
     return e;
   }
   function fe(errs, k) { return errs[k] ? '<p class="fe" role="alert">' + errs[k] + '</p>' : ''; }
@@ -116,6 +118,13 @@
     return (p.acRows || []).map(function (r, i) {
       return '<div class="acrow card inner"><div class="row">' + App.fld(t('ac.kind'), App.sel('acRows.' + i + '.type', p, [['split', t('ac.split')], ['window', t('ac.window')], ['central', t('ac.central')]])) + App.fld(t('ac.count'), App.inp('acRows.' + i + '.units', p, { min: 1, max: 500 })) + '</div>' +
         '<div class="row">' + App.fld(t('ac.cap'), App.inp('acRows.' + i + '.cap', p, { min: 0.5, max: 600000, step: 0.5 })) + App.fld('&nbsp;', App.sel('acRows.' + i + '.capUnit', p, [['ton', t('ac.ton')], ['btu', t('ac.btu')]])) + '</div>' + ((p.acRows || []).length > 1 ? '<button type="button" class="btn ghost small" data-acdel="' + i + '">' + t('ac.del') + '</button>' : '') + '</div>';
+    }).join('');
+  }
+  function obsRowsHTML(p) {
+    return (p.obsRows || []).map(function (r, i) {
+      return '<div class="acrow card inner"><b>' + t('ob.n', { n: i + 1 }) + '</b><div class="row">' + App.fld(t('ob.w'), App.inp('obsRows.' + i + '.w', p, { min: 0.1, max: 100, step: 0.1 })) + App.fld(t('ob.h'), App.inp('obsRows.' + i + '.h', p, { min: 0.1, max: 100, step: 0.1 })) + '</div>' +
+        '<div class="row">' + App.fld(t('ob.x'), App.inp('obsRows.' + i + '.x', p, { min: 0, max: 300, step: 0.1 })) + App.fld(t('ob.y'), App.inp('obsRows.' + i + '.y', p, { min: 0, max: 300, step: 0.1 })) + '</div>' +
+        '<button type="button" class="btn ghost small" data-obdel="' + i + '">' + t('ob.del') + '</button></div>';
     }).join('');
   }
   function formHTML(p, errs) {
@@ -137,7 +146,7 @@
     h += '<section class="card fgrp"><h3><i>3</i>' + t('g3.t') + '</h3><div class="seg2" role="group"><button type="button" data-dk="1" aria-pressed="' + (p.dimsKnown !== false) + '">' + t('d.known') + '</button><button type="button" data-dk="0" aria-pressed="' + (p.dimsKnown === false) + '">' + t('d.unknown') + '</button></div>';
     if (p.dimsKnown === false) h += App.fld(t('d.areaIn'), App.inp('area', p, { min: 9, max: 20000 }) + fe(errs, 'area'), t('d.approx'));
     else h += '<div class="row">' + App.fld(t('d.len'), App.inp('len', p, { min: 3, max: 300 }) + fe(errs, 'len')) + App.fld(t('d.wid'), App.inp('wid', p, { min: 3, max: 300 }) + fe(errs, 'wid')) + '</div><p class="note">' + t('d.area') + ': <b id="areaT">' + fmt((Number(p.len) || 0) * (Number(p.wid) || 0)) + '</b> m²</p>';
-    h += '<details class="more"><summary>' + t('d.more') + '</summary><label>' + t('d.obs') + '</label>' + seg3('obsAns', p, [['yes', t('yn.yes')], ['no', t('yn.no')], ['unsure', t('yn.unsure')]]) + (p.obsAns === 'yes' ? App.fld(t('d.obsArea'), App.inp('obsArea', p, { min: 0, max: 5000 }), t('d.obsHelp')) : '') +
+    h += '<details class="more" id="moreD"' + (p.moreOpen || p.obsAns === 'yes' ? ' open' : '') + '><summary>' + t('d.more') + '</summary><label>' + t('d.obs') + '</label>' + seg3('obsAns', p, [['yes', t('yn.yes')], ['no', t('yn.no')], ['unsure', t('yn.unsure')]]) + (p.obsAns === 'yes' ? '<p class="note">' + t('ob.help') + '</p><div id="obBox">' + obsRowsHTML(p) + '</div><button type="button" class="btn ghost small" id="obAdd">' + t('ob.add') + '</button>' + fe(errs, 'obs') + App.fld(t('d.obsArea'), App.inp('obsArea', p, { min: 0, max: 5000 }), t('ob.areaAlt')) : '') +
       '<label>' + t('d.shade') + '</label>' + seg3('shadeAns', p, [['yes', t('yn.yes')], ['no', t('yn.no')], ['unsure', t('yn.unsure')]]) +
       '<div class="row">' + App.fld(t('d.az'), '<select data-f="azDev" data-num="1" id="f-azDev"><option value=""' + (p.azDev === '' || p.azDev == null ? ' selected' : '') + '>' + t('az.unk') + '</option>' + [0, 45, 90, 180].map(function (d) { return '<option value="' + d + '"' + (String(p.azDev) === String(d) ? ' selected' : '') + '>' + t('az.' + d) + '</option>'; }).join('') + '</select>') + App.fld(t('d.tilt'), App.inp('tiltIn', p, { min: 0, max: 35 }), t('f.tiltHint')) + '</div>' +
       App.fld(t('f.photo'), '<input type="file" id="photoIn" accept="image/*">' + (p.photo ? '<div class="photo"><img alt="" src="' + p.photo + '"><button class="btn ghost small" type="button" id="photoDel">' + t('photo.remove') + '</button></div>' : ''), t('f.photoHint')) + '</details></section>';
@@ -189,6 +198,9 @@
       $$('[data-type]').forEach(function (b) { b.onclick = function () { p.type = b.dataset.type; upd(); $$('[data-type]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); }; });
       $$('[data-seg]').forEach(function (b) { b.onclick = function () { p[b.dataset.seg] = b.dataset.val; upd(); keepScroll(function () { App.route(); }); }; });
       $$('[data-dk]').forEach(function (b) { b.onclick = function () { p.dimsKnown = b.dataset.dk === '1'; upd(); keepScroll(function () { App.route(); }); }; });
+      var md = $('#moreD'); if (md) md.addEventListener('toggle', function () { p.moreOpen = md.open; });
+      var oa = $('#obAdd'); if (oa) oa.onclick = function () { (p.obsRows = p.obsRows || []).push({ x: '', y: '', w: '', h: '' }); upd(); keepScroll(function () { App.route(); }); };
+      $$('[data-obdel]').forEach(function (b) { b.onclick = function () { p.obsRows.splice(+b.dataset.obdel, 1); upd(); keepScroll(function () { App.route(); }); }; });
       var add = $('#acAdd'); if (add) add.onclick = function () { p.acRows.push({ type: 'split', units: '', cap: 1.5, capUnit: 'ton' }); p.extraOpen = true; upd(); keepScroll(function () { App.route(); }); };
       $$('[data-acdel]').forEach(function (b) { b.onclick = function () { p.acRows.splice(+b.dataset.acdel, 1); upd(); keepScroll(function () { App.route(); }); }; });
       var gb = $('#geoBtn'); if (gb) gb.onclick = function () { geolocate(p, function (m) { var g = $('#geoMsg'); if (g) g.textContent = m; var cs = $('#f-city'); if (cs) cs.value = p.city; upd(); }); };
