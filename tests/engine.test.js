@@ -84,11 +84,40 @@ t('obstacle rectangle removes panels from the layout', () => { const a = C.desig
 t('roof too small => roofLimited warning and production below need', () => { const r = C.design(Object.assign({}, base, { len: 6, wid: 5, cons: 6000 })); assert.ok(!r.ok || r.warnings.includes('roofLimited')); });
 t('2027 tariff gives higher savings than current for the same design', () => { const a = C.design(base, { tariffSet: 'current' }), b = C.design(base, { tariffSet: 'y2027' }); assert.ok(b.save > a.save); });
 
+console.log('Customer inputs: AC load, orientation, occupancy, confidence, size options');
+t('AC load: 3 units x 2 t, 10 h/day, villa => 10389.96 kWh/yr AC (+450/month base) = 1315.83 kWh/month', () => {
+  const a = C.acLoad({ units: 3, tons: 2, hours: 10, type: 'villa' }); near(a.unitKw, 2.4, 1e-9); near(a.acAnnual, 50.4 * 206.15, 0.01); near(a.monthlyAvg, 50.4 * 206.15 / 12 + 450, 0.01);
+});
+t('azimuth factor: 0 deg = 1, 45 = 0.98, 90 = 0.92, 180 = 0.80', () => { near(C.azFactor(0), 1, 1e-12); near(C.azFactor(45), 0.98, 1e-12); near(C.azFactor(90), 0.92, 1e-12); near(C.azFactor(180), 0.8, 1e-12); near(C.azFactor(-90), 0.92, 1e-12); });
+t('confidence: all known = 10% high; azimuth+shade unknown = 17% medium; plus AC-estimated load = 27% low', () => {
+  const a = C.confidence({ azUnknown: false, shade: 'none' }), b = C.confidence({ azUnknown: true, shade: 'unknown' }), c = C.confidence({ azUnknown: true, shade: 'unknown', consFromAc: true });
+  assert.deepStrictEqual([a.rangePct, a.level, b.rangePct, b.level, c.rangePct, c.level], [10, 'high', 17, 'medium', 27, 'low']);
+});
+t('design: panels facing 90 deg from south yield 0.92x the specific yield', () => { const a = C.design(Object.assign({}, base, { azDev: 0 })), b = C.design(Object.assign({}, base, { azDev: 90 })); near(b.yieldKwh / a.yieldKwh, 0.92, 1e-9); });
+t('design: production range widens when inputs are missing (range uses the confidence %)', () => {
+  const a = C.design(Object.assign({}, base, { azDev: 0, shade: 'none' })), b = C.design(base); near(a.prodLow / a.prod, 0.9, 1e-9); near(b.prodLow / b.prod, 0.83, 1e-9); assert.strictEqual(b.conf.level, 'medium');
+});
+t('design from AC units (no bill): consumption = AC estimate, confidence low, flagged', () => {
+  const r = C.design(Object.assign({}, base, { mode: 'ac', cons: 0, ac: { units: 3, tons: 2, hours: 10 } })); assert.ok(r.ok); near(r.monthly, 1315.83, 0.01); assert.strictEqual(r.conf.level, 'low');
+});
+t('design: AC mode with zero units is rejected', () => assert.strictEqual(C.design(Object.assign({}, base, { mode: 'ac', ac: { units: 0 } })).error, 'ac'));
+t('daytime occupancy: high > normal > low direct use, and savings follow (no export credit)', () => {
+  const big = Object.assign({}, base, { len: 40, wid: 30, cons: 1500, azDev: 0, shade: 'none' }), lo = C.design(Object.assign({}, big, { daytime: 'low' })), no = C.design(big), hi = C.design(Object.assign({}, big, { daytime: 'high' }));
+  assert.ok(lo.flows.direct < no.flows.direct && no.flows.direct < hi.flows.direct && lo.save < no.save && no.save < hi.save);
+});
+t('size options: 8 rows, exported share never falls as the array grows, flows balance, 100% row = chosen design', () => {
+  const r = C.design(Object.assign({}, base, { cons: 2500, len: 40, wid: 30 })); assert.strictEqual(r.sizing.rows.length, 8);
+  for (let i = 1; i < 8; i++) assert.ok(r.sizing.rows[i].exportShare >= r.sizing.rows[i - 1].exportShare - 1e-9);
+  const last = r.sizing.rows[7]; near(last.kwp, r.kwp, 1e-9); near(last.cost, r.cost, 1e-6); assert.ok(r.sizing.best && r.sizing.best.npv >= last.npv);
+});
+t('sizePct=50 builds about half the array', () => { const f = C.design(Object.assign({}, base, { cons: 2500, len: 40, wid: 30 })), h = C.design(Object.assign({}, base, { cons: 2500, len: 40, wid: 30, sizePct: 50 })); assert.ok(Math.abs(h.n - Math.ceil(f.n * 0.5)) <= 1); });
+
 console.log('Data provenance');
 t('every tariff class cites a source that exists', () => Object.values(D.TARIFF.sets).forEach(s => Object.values(s.classes).forEach(c => { assert.strictEqual(c.status, 'sourced'); c.src.forEach(k => assert.ok(D.SOURCES[k], k)); })));
 t('every verified equipment record cites a source that exists', () => D.EQUIP.filter(e => e.verified).forEach(e => assert.ok(D.SOURCES[e.source], e.id)));
 t('every unverified equipment record is labelled unverified', () => D.EQUIP.filter(e => !e.verified).forEach(e => assert.ok(/unverified/.test(e.name), e.id)));
 t('every loss/finance/price item declares a status', () => { Object.keys(D.LOSSES).forEach(k => assert.ok(D.LOSSES[k].status, k)); Object.keys(D.FIN).forEach(k => assert.ok(D.FIN[k].status, k)); assert.strictEqual(D.PRICES.status, 'assumption'); });
+t('customer-input models declare status',()=>Object.keys(D.USE).forEach(k=>assert.ok(D.USE[k].status,k)));
 t('SERA surplus credit is flagged as NOT in force and default credit is 0', () => { assert.strictEqual(D.EXPORT.surplusCredit.inForce, false); assert.strictEqual(C.DEFAULTS.surplusCredit, 0); });
 
 console.log('\n' + (n - failed) + '/' + n + ' passed');

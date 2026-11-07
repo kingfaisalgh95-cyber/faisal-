@@ -277,7 +277,8 @@
   function paybackText(R) {
     var life = A().life, hi = R.finLow && R.finLow.payback;
     if (R.payback == null) return '>' + life + ' ' + t('yr');
-    return R.payback.toFixed(1) + (hi != null ? ' – ' + hi.toFixed(1) : ' – >' + life) + ' ' + t('yr');
+    var a = R.payback.toFixed(1), b = hi != null ? hi.toFixed(1) : null;
+    return (b === a ? a : a + (b != null ? ' – ' + b : ' – >' + life)) + ' ' + t('yr');
   }
   function stTag(k) { return '<span class="tag st-' + k + '">' + t('st.' + k) + '</span>'; }
   function srcLinks(ids) {

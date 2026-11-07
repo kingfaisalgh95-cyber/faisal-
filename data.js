@@ -132,7 +132,21 @@
     co2tPerKwh: { value: 0.0006, status: 'assumption', note: 'Grid emission factor; not verified against an official source.' }
   };
 
-  var api = { RETRIEVED: RETRIEVED, SOURCES: SOURCES, TARIFF: TARIFF, EXPORT: EXPORT, CITY: CITY, IRR: IRR, DAYS: DAYS, LOSSES: LOSSES, EQUIP: EQUIP, PRICES: PRICES, FIN: FIN };
+
+  // ---------- customer-input models (load from AC units, orientation, daytime occupancy, confidence) ----------
+  // None of these is taken from a published source; each is a labelled ASSUMPTION used only when the customer does not know the exact figure.
+  var USE = {
+    acEer: { value: 10, unit: 'BTU/h per W', status: 'assumption', note: 'Typical split-unit energy efficiency ratio. Real units differ; replace with the nameplate EER when known.' },
+    acBtuPerTon: { value: 12000, unit: 'BTU/h', status: 'derived', note: 'Definition of one refrigeration ton.' },
+    acSeason: { winter: 0.15, spring: 0.55, summer: 1, autumn: 0.55, status: 'assumption', note: 'Relative cooling hours per season versus summer.' },
+    acLoadFactor: { value: 0.7, status: 'assumption', note: 'Average compressor load while the unit is on (cycling).' },
+    baseLoadKwh: { villa: 450, company: 800, warehouse: 500, factory: 1500, unit: 'kWh/month', status: 'assumption', note: 'Non-AC load (lighting, appliances, equipment) added when consumption is estimated from AC units.' },
+    occupancy: { low: 0.7, normal: 1, high: 1.25, cap: 0.95, status: 'assumption', note: 'Multiplier on the default daylight share of consumption: low = nobody home / closed in daytime, high = occupied all day.' },
+    azimuth: { lossAt90: 0.08, lossAt180: 0.2, status: 'assumption', note: 'Annual yield loss when panels face 90 deg / 180 deg away from south (quadratic up to 90 deg, linear to 180). Approximation for low tilt; to be replaced by a PVGIS run per site.' },
+    confidence: { base: 10, azUnknown: 3, shadeUnknown: 4, shadeSome: 3, consFromAc: 10, highMax: 12, mediumMax: 18, status: 'assumption', note: 'Half-width (%) of the production range = base + penalty for each design-critical input that is missing. Level: high <= 12, medium <= 18, otherwise low.' }
+  };
+
+  var api = { USE: USE, RETRIEVED: RETRIEVED, SOURCES: SOURCES, TARIFF: TARIFF, EXPORT: EXPORT, CITY: CITY, IRR: IRR, DAYS: DAYS, LOSSES: LOSSES, EQUIP: EQUIP, PRICES: PRICES, FIN: FIN };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.SolarData = api;
 })(typeof window !== 'undefined' ? window : globalThis);
