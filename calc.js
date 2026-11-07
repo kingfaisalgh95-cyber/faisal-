@@ -1,68 +1,133 @@
-/* Shaqaf Energy — calculation engine v2
-   Every figure is an ESTIMATE until a site survey and an engineering study confirm it.
-   All assumptions live in DEFAULTS and can be overridden per organisation (Settings). */
+/* Shaqaf Energy — calculation engine v3 (pure: no DOM, no storage).
+   All numbers come from data.js (each tagged sourced / derived / assumption with source + retrieval date)
+   or from the user's input. Every figure is an ESTIMATE until a site survey and an engineering study confirm it. */
 (function (root) {
   'use strict';
+  var D = root.SolarData || (typeof require !== 'undefined' ? require('./data.js') : null);
+  if (!D) throw new Error('data.js must be loaded before calc.js');
+  var DATA_VERSION = 'data-2026-11-07';
 
+  var L_ = D.LOSSES, F_ = D.FIN, P_ = D.PRICES;
   var DEFAULTS = {
-    life: 25,          // system life (years)
-    degr: 0.5,         // panel degradation (%/yr)
-    esc: 0,            // electricity tariff escalation (%/yr). 0 = conservative
-    om: 1,             // O&M (% of capex per year)
-    disc: 6,           // discount rate (%)
-    replYear: 12, replPct: 10, // inverter replacement: year, % of capex
-    battPerKwh: 1800,  // SAR per kWh of battery
-    co2: 0.0006,       // tCO2 per kWh
-    sunElev: 30,       // sun elevation (deg) used for row spacing
+    dataVersion: DATA_VERSION,
+    life: F_.lifeYears.value,
+    degr: 0.5,         // fallback annual degradation (%/yr) for panels with no datasheet value
+    degrYear1: 1.0,    // fallback first-year degradation (%) for panels with no datasheet value
+    esc: F_.escPct.value, om: F_.omPct.value, disc: F_.discPct.value,
+    replYear: F_.replYear.value, replPct: F_.replPct.value,
+    battPerKwh: P_.battPerKwh,
+    co2: F_.co2tPerKwh.value,
+    sunElev: 30,       // sun elevation (deg) used for row spacing (geometry)
     tminC: 5, tcellMax: 70, // design temperatures for string sizing (C)
-    margin: 1,         // roof edge setback (m)
-    gap: 0.02,         // gap between panels (m)
-    dropDC: 1, dropAC: 2, // allowed voltage drop (%)
-    cuK: 48,           // copper conductivity at operating temperature (m/ohm.mm2)
+    margin: 1, gap: 0.02,   // roof edge setback / gap between panels (m)
+    dropDC: 1, dropAC: 2,
+    cuK: 48,
     offgridOversize: 1.3,
-    costBands: [[10, 3800], [50, 3300], [1e9, 2800]], // SAR/kWp by system size (kWp upper bound)
-    split: { panels: 0.38, inverter: 0.17, mounting: 0.12, cables: 0.08, install: 0.20, other: 0.05 },
-    tariffs: { // [rate up to limit, limit kWh/month, rate above]
-      villa: [0.18, 6000, 0.30], company: [0.20, 6000, 0.30], warehouse: [0.20, 6000, 0.30], factory: [0.18, 1e12, 0.18]
-    }
+    costBands: P_.costBands.map(function (b) { return b.slice(); }),
+    split: Object.assign({}, P_.split),
+    // losses (assumptions, see data.js)
+    cellTempAvgC: L_.cellTempAvgC.value, soilingPct: L_.soilingPct.value, mismatchDcPct: L_.mismatchDcPct.value,
+    wiringAcPct: L_.wiringAcPct.value, availabilityPct: L_.availabilityPct.value, tiltLossK: L_.tiltLossK.value,
+    uncertaintyPct: L_.uncertaintyPct.value, invEffPenaltyPt: L_.inverterEffFallbackPenaltyPt.value,
+    // tariff regime + export
+    tariffSet: 'y2027',
+    exportMode: 'net',        // 'net' (kWh netting) | 'self' (self-consumption + surplus credit)
+    selfUse: { villa: 0.55, company: 0.8, warehouse: 0.75, factory: 0.9 }, // assumption, used only when exportMode='self'
+    surplusCredit: 0,         // SAR/kWh; the SERA proposal (0.07 / 0.05) is not in force
+    vatRecoverable: { residential: false, commercial: true, industrial: true }
   };
 
-  var CITIES = {
-    riyadh: { ar: 'الرياض', en: 'Riyadh', yield: 1700 }, jeddah: { ar: 'جدة', en: 'Jeddah', yield: 1650 },
-    dammam: { ar: 'الدمام', en: 'Dammam', yield: 1600 }, tabuk: { ar: 'تبوك', en: 'Tabuk', yield: 1750 },
-    abha: { ar: 'أبها', en: 'Abha', yield: 1620 }, buraidah: { ar: 'بريدة', en: 'Buraidah', yield: 1700 },
-    madinah: { ar: 'المدينة المنورة', en: 'Madinah', yield: 1720 }, makkah: { ar: 'مكة المكرمة', en: 'Makkah', yield: 1660 }
-  };
+  var CLASS_OF = { villa: 'residential', company: 'commercial', warehouse: 'commercial', factory: 'industrial' };
   var TYPES = {
     villa: { kind: 'residential', height: 7 }, company: { kind: 'commercial', height: 12 },
-    warehouse: { kind: 'commercial', height: 8 }, factory: { kind: 'commercial', height: 10 }
+    warehouse: { kind: 'commercial', height: 8 }, factory: { kind: 'industrial', height: 10 }
   };
+  function tariffTable(setKey) {
+    var set = D.TARIFF.sets[setKey] || D.TARIFF.sets.y2027, o = {};
+    Object.keys(CLASS_OF).forEach(function (k) { var c = set.classes[CLASS_OF[k]]; o[k] = [c.rate1, c.limit, c.rate2]; });
+    return o;
+  }
+  DEFAULTS.tariffs = tariffTable(DEFAULTS.tariffSet);
 
-  // Generic typical equipment. verified:false means "typical values, not checked against a datasheet".
-  var DEF_EQUIP = [
-    { id: 'pv550', kind: 'panel', name: 'Mono PERC 550W (typical)', maker: 'Generic', watt: 550, voc: 49.6, vmp: 41.5, isc: 14.0, imp: 13.25, tcVoc: -0.27, tcPmax: -0.35, len: 2.278, wid: 1.134, verified: false },
-    { id: 'inv5h', kind: 'inverter', name: 'Hybrid 5kW 1-ph (typical)', maker: 'Generic', kw: 5, phase: 1, vmax: 600, mpptMin: 90, mpptMax: 520, mppts: 2, iscMax: 32, hybrid: true, verified: false },
-    { id: 'inv10h', kind: 'inverter', name: 'Hybrid 10kW 3-ph (typical)', maker: 'Generic', kw: 10, phase: 3, vmax: 1000, mpptMin: 160, mpptMax: 850, mppts: 2, iscMax: 32, hybrid: true, verified: false },
-    { id: 'inv20g', kind: 'inverter', name: 'Grid 20kW 3-ph (typical)', maker: 'Generic', kw: 20, phase: 3, vmax: 1100, mpptMin: 200, mpptMax: 1000, mppts: 2, iscMax: 40, hybrid: false, verified: false },
-    { id: 'inv50g', kind: 'inverter', name: 'Grid 50kW 3-ph (typical)', maker: 'Generic', kw: 50, phase: 3, vmax: 1100, mpptMin: 200, mpptMax: 1000, mppts: 5, iscMax: 40, hybrid: false, verified: false },
-    { id: 'inv100g', kind: 'inverter', name: 'Grid 100kW 3-ph (typical)', maker: 'Generic', kw: 100, phase: 3, vmax: 1100, mpptMin: 200, mpptMax: 1000, mppts: 10, iscMax: 40, hybrid: false, verified: false },
-    { id: 'bat10', kind: 'battery', name: 'LFP rack 10kWh (typical)', maker: 'Generic', kwh: 10, kw: 5, dod: 90, rte: 94, verified: false }
-  ];
+  var DEF_EQUIP = JSON.parse(JSON.stringify(D.EQUIP));
+
+  // City table kept for the UI (names). 'yield' = reference specific yield (kWh/kWp/yr) at optimal tilt with the default panel and a 98% inverter.
+  var CITIES = {};
+  Object.keys(D.CITY).forEach(function (k) { var c = D.CITY[k]; CITIES[k] = { ar: c.ar, en: c.en, lat: c.lat, lon: c.lon, tiltOpt: c.tiltOpt, yield: 0 }; });
 
   var STD_BREAKER = [6, 10, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630];
   var STD_FUSE = [10, 12, 15, 20, 25, 30];
   var DC_CABLES = [[4, 55], [6, 70], [10, 98], [16, 132], [25, 176], [35, 218], [50, 276], [70, 347], [95, 416]];
   var AC_CABLES = [[4, 32], [6, 41], [10, 57], [16, 76], [25, 101], [35, 125], [50, 151], [70, 192], [95, 232], [120, 269], [150, 309], [185, 353], [240, 415]];
 
-  function A_(A) { return Object.assign({}, DEFAULTS, A || {}); }
+  function A_(A) {
+    var o = Object.assign({}, DEFAULTS, A || {});
+    if (!A || !A.tariffs) o.tariffs = tariffTable(o.tariffSet);
+    return o;
+  }
   function num(v, d) { v = Number(v); return isFinite(v) ? v : d; }
   function nextStd(list, v) { for (var i = 0; i < list.length; i++) if (list[i] >= v) return list[i]; return list[list.length - 1]; }
   function equip(lib, id, kind) { var l = (lib && lib.length ? lib : DEF_EQUIP).filter(function (e) { return e.kind === kind; }); return l.filter(function (e) { return e.id === id; })[0] || l[0]; }
 
   // ---------- tariff ----------
-  function billFromKwh(kwh, type, A) { var t = A_(A).tariffs[type] || A_(A).tariffs.villa; return kwh <= t[1] ? kwh * t[0] : t[1] * t[0] + (kwh - t[1]) * t[2]; }
-  function kwhFromBill(bill, type, A) { var t = A_(A).tariffs[type] || A_(A).tariffs.villa, f = t[1] * t[0]; return bill <= f ? bill / t[0] : t[1] + (bill - f) / t[2]; }
+  // billEx: energy charge excl. VAT. billFromKwh: what the customer pays incl. VAT (compares with the bill they type in).
+  var VAT = D.TARIFF.vat.value;
+  function tier(type, A) { return A_(A).tariffs[type] || A_(A).tariffs.villa; }
+  function billEx(kwh, type, A) { var t = tier(type, A); kwh = Math.max(0, kwh); return kwh <= t[1] ? kwh * t[0] : t[1] * t[0] + (kwh - t[1]) * t[2]; }
+  function billFromKwh(kwh, type, A) { return billEx(kwh, type, A) * (1 + VAT); }
+  function kwhFromBill(bill, type, A) { var t = tier(type, A), b = bill / (1 + VAT), f = t[1] * t[0]; return b <= f ? b / t[0] : t[1] + (b - f) / t[2]; }
   function costRate(kwp, A) { var b = A_(A).costBands; for (var i = 0; i < b.length; i++) if (kwp < b[i][0]) return b[i][1]; return b[b.length - 1][1]; }
+  function vatFactor(type, A) { A = A_(A); return A.vatRecoverable[CLASS_OF[type] || 'residential'] ? 1 : 1 + VAT; }
+
+  // ---------- production ----------
+  // Monthly energy = kWp x (seasonal kWh/kW/day at optimal tilt) x days x tiltFactor x PR.
+  // PR = (1 - temperature) x (1 - soiling) x (1 - mismatch/DC) x (1 - AC wiring) x (1 - availability) x inverter efficiency.
+  function invEff(inv, A) {
+    if (!inv) return 0.98;
+    var e = inv.effEuro != null ? inv.effEuro : (inv.effMax != null ? inv.effMax - A.invEffPenaltyPt : 98 - A.invEffPenaltyPt);
+    return e / 100;
+  }
+  function performance(panel, inv, A) {
+    A = A_(A);
+    var temp = Math.abs(panel.tcPmax) / 100 * Math.max(0, A.cellTempAvgC - 25);
+    var parts = { temperature: temp, soiling: A.soilingPct / 100, mismatchDc: A.mismatchDcPct / 100, wiringAc: A.wiringAcPct / 100, availability: A.availabilityPct / 100 };
+    var pr = (1 - parts.temperature) * (1 - parts.soiling) * (1 - parts.mismatchDc) * (1 - parts.wiringAc) * (1 - parts.availability) * invEff(inv, A);
+    return { pr: pr, parts: parts, invEff: invEff(inv, A) };
+  }
+  function tiltFactor(cityKey, tilt, A) { var c = D.CITY[cityKey] || D.CITY.riyadh, d = tilt - c.tiltOpt; return 1 - A_(A).tiltLossK * d * d; }
+  function production(o, A) {
+    A = A_(A);
+    var cityKey = D.CITY[o.city] ? o.city : 'riyadh', c = D.CITY[cityKey], pf = performance(o.panel, o.inv, A), tf = tiltFactor(cityKey, num(o.tilt, c.tiltOpt), A);
+    var months = [], poa = 0;
+    for (var m = 0; m < 12; m++) {
+      var psh = c[D.IRR.monthSeason[m]] * D.DAYS[m] * tf;      // kWh/kW in the month, before losses
+      poa += psh; months.push(o.kwp * psh * pf.pr);
+    }
+    var annual = months.reduce(function (a, v) { return a + v; }, 0);
+    return { months: months, annual: annual, pr: pf.pr, perf: pf, tiltFactor: tf, poaAnnual: poa, specific: o.kwp > 0 ? annual / o.kwp : poa * pf.pr };
+  }
+
+  // ---------- bill savings ----------
+  // flat monthly consumption (the customer gives one figure). scale: production multiplier (degradation / conservative case).
+  function savings(o, A) {
+    A = A_(A);
+    var type = o.type, cons = o.monthly, scale = o.scale == null ? 1 : o.scale, vf = vatFactor(type, A), mode = A.exportMode;
+    var rows = [], bal = 0, save = 0, credit = 0, wasted = 0, now = 0, after = 0, exported = 0;
+    for (var m = 0; m < 12; m++) {
+      var pr = o.prodMonths[m] * scale, netKwh, used, exp = 0;
+      if (mode === 'self') {
+        used = Math.min(pr * (A.selfUse[type] != null ? A.selfUse[type] : 0.6), cons); exp = pr - used; netKwh = cons - used; credit += exp * A.surplusCredit;
+      } else {
+        if (pr >= cons) { bal += pr - cons; netKwh = 0; used = cons; }
+        else { var need = cons - pr, take = Math.min(bal, need); bal -= take; netKwh = need - take; used = cons - netKwh; }
+      }
+      var bn = billEx(cons, type, A) * vf, ba = billEx(netKwh, type, A) * vf;
+      rows.push({ prod: pr, billNow: bn, billAfter: ba, netKwh: netKwh, saving: bn - ba });
+      now += bn; after += ba; save += bn - ba; exported += exp;
+    }
+    if (mode !== 'self') wasted = bal;
+    return { rows: rows, save: save + credit, billNowYear: now, billAfterYear: after, credit: credit, exported: exported, unusedCarry: wasted };
+  }
 
   // ---------- cables ----------
   // kind: 'dc' (2 wires), 'ac1' (single phase), 'ac3' (three phase)
@@ -83,8 +148,9 @@
     var vocCold = panel.voc * (1 + panel.tcVoc / 100 * (A.tminC - 25));
     var vmpHot = panel.vmp * (1 + panel.tcPmax / 100 * (A.tcellMax - 25));
     var maxS = Math.floor(inv.vmax / vocCold), minS = Math.ceil(inv.mpptMin / vmpHot), topS = Math.min(maxS, Math.floor(inv.mpptMax / panel.vmp));
-    var perMppt = Math.max(1, Math.floor(inv.iscMax / panel.isc)), cap = inv.mppts * perMppt * qty;
+    var perMppt = inv.stringsPerMppt || Math.max(1, Math.floor(inv.iscMax / panel.isc)), cap = inv.mppts * perMppt * qty;
     var r = { vocCold: vocCold, vmpHot: vmpHot, minS: minS, maxS: maxS, topS: topS, cap: cap, warn: [] };
+    if (inv.imMax && panel.imp > inv.imMax) r.warn.push('mpptCurrent');
     if (n < 1) { r.series = 0; r.strings = 0; r.leftover = 0; r.ok = false; return r; }
     if (minS > topS) { r.series = 0; r.strings = 0; r.leftover = n; r.ok = false; r.warn.push('noWindow'); return r; }
     var best = null;
@@ -119,17 +185,19 @@
   }
 
   // ---------- financial ----------
-  function financial(cost, save1, prod, A) {
+  // save: number (year-1 saving, scaled by degradation) or function(scale) -> annual saving at that production scale.
+  // Degradation: linear on rated power: year y factor = 1 - d1 - (y-1) x d (JinkoSolar warranty: 99% after year 1, 0.40%/yr).
+  function financial(cost, save, prod, A) {
     A = A_(A);
-    var flow = [], cum = -cost, npv = -cost, pay = null, gross = 0, energy = 0, pvCost = cost, pvEnergy = 0;
+    var d1 = A.degrYear1 / 100, d = A.degr / 100, flow = [], cum = -cost, npv = -cost, pay = null, gross = 0, pvCost = cost, pvEnergy = 0, years = [];
     for (var y = 1; y <= A.life; y++) {
-      var f = Math.pow(1 - A.degr / 100, y - 1), s = save1 * f * Math.pow(1 + A.esc / 100, y - 1);
-      var om = cost * A.om / 100, rep = y === A.replYear ? cost * A.replPct / 100 : 0, net = s - om - rep, d = Math.pow(1 + A.disc / 100, y);
-      gross += s; cum += net; npv += net / d; pvCost += (om + rep) / d; pvEnergy += prod * f / d;
+      var f = Math.max(0, 1 - d1 - (y - 1) * d), s = (typeof save === 'function' ? save(f) : save * f) * Math.pow(1 + A.esc / 100, y - 1);
+      var om = cost * A.om / 100, rep = y === A.replYear ? cost * A.replPct / 100 : 0, net = s - om - rep, dd = Math.pow(1 + A.disc / 100, y);
+      gross += s; cum += net; npv += net / dd; pvCost += (om + rep) / dd; pvEnergy += prod * f / dd;
       if (pay === null && cum >= 0) pay = (y - 1) + (-(cum - net) / net);
-      flow.push(Math.round(cum));
+      flow.push(Math.round(cum)); years.push({ y: y, factor: f, saving: s, om: om, repl: rep, net: net, cum: cum });
     }
-    return { flow: flow, payback: pay, lifetimeGross: gross, lifetimeNet: cum, npv: npv, lcoe: pvEnergy > 0 ? pvCost / pvEnergy : 0 };
+    return { flow: flow, years: years, payback: pay, lifetimeGross: gross, lifetimeNet: cum, npv: npv, lcoe: pvEnergy > 0 ? pvCost / pvEnergy : 0 };
   }
 
   // ---------- main design ----------
@@ -160,12 +228,14 @@
       slots.push({ i: i, r: Math.floor(i / cols), c: i % cols, st: st }); if (st === 'free') avail.push(i);
     }
     if (!avail.length) return { ok: false, error: 'roof' };
-    var kwPanel = panel.watt / 1000, yieldKwh = city.yield * (1 - Math.abs(tilt - 20) * 0.001); // mild tilt loss vs ~20deg optimum
+    var kwPanel = panel.watt / 1000, cityKey = p.city in CITIES ? p.city : 'riyadh';
+    var degA = Object.assign({}, A, { degr: panel.degrAnnual != null ? panel.degrAnnual : A.degr, degrYear1: panel.degrYear1 != null ? panel.degrYear1 : A.degrYear1 });
+    var yieldKwh = production({ city: cityKey, tilt: tilt, kwp: 1, panel: panel, inv: null }, A).specific; // sizing estimate with a nominal inverter; refined below
     var offgrid = system === 'offgrid', target = (offgrid ? annual * A.offgridOversize : annual);
     var need = Math.ceil(target / yieldKwh / kwPanel);
     var n = p.manual ? avail.length : Math.min(need, avail.length);
     avail.forEach(function (idx, k) { slots[idx].st = k < n ? 'on' : 'free'; });
-    var kwp = n * kwPanel, prod = kwp * yieldKwh;
+    var kwp = n * kwPanel;
 
     // inverter
     var invs = (lib && lib.length ? lib : DEF_EQUIP).filter(function (e) { return e.kind === 'inverter'; }).sort(function (a, b) { return a.kw - b.kw; });
@@ -178,6 +248,7 @@
     }
     var strings = stringConfig(n, panel, inv, qty, A);
     var invKwTotal = inv.kw * qty, dcac = kwp / invKwTotal;
+    var pro = production({ city: cityKey, tilt: tilt, kwp: kwp, panel: panel, inv: inv }, A), prod = pro.annual; yieldKwh = pro.specific;
 
     // battery
     var bat = null, b = p.battery || {};
@@ -193,9 +264,12 @@
     var parts = { panels: base * sp.panels, inverter: base * sp.inverter, mounting: base * sp.mounting, cables: base * sp.cables, install: base * sp.install, other: base * sp.other, battery: bat ? bat.nominal * A.battPerKwh : 0 };
     var cost = base + parts.battery;
 
-    // electricity bill effect
-    var useful = Math.min(prod, annual), billNow = billFromKwh(monthly, type, A), billAfter = billFromKwh(Math.max(0, monthly - useful / 12), type, A), save = (billNow - billAfter) * 12;
-    var fin = financial(cost, save, prod, A);
+    // electricity bill effect (month by month, tiered tariff, export mode per assumptions)
+    var sv = savings({ type: type, monthly: monthly, prodMonths: pro.months }, A), save = sv.save, billNow = billFromKwh(monthly, type, A);
+    var billAfter = sv.billAfterYear / 12 * (A_(A).vatRecoverable[CLASS_OF[type]] ? 1 + VAT : 1); // shown on the same incl.-VAT basis as billNow
+    var fin = financial(cost, function (f) { return savings({ type: type, monthly: monthly, prodMonths: pro.months, scale: f }, A).save; }, prod, degA);
+    var lowScale = 1 - A.uncertaintyPct / 100;
+    var finLow = financial(cost, function (f) { return savings({ type: type, monthly: monthly, prodMonths: pro.months, scale: f * lowScale }, A).save; }, prod * lowScale, degA);
 
     // electrical
     var dcLen = num(p.dcLen, 30), acLen = num(p.acLen, 20), acPhase = inv.phase === 1 ? 1 : 3, V = acPhase === 3 ? 400 : 230;
@@ -213,13 +287,14 @@
     if (n < need && !p.manual) warnings.push('roofLimited');
     if (dcac > 1.4) warnings.push('dcacHigh'); if (dcac < 0.9) warnings.push('dcacLow');
     if (bat && bat.powerLimited) warnings.push('batPower');
+    if (A.exportMode === 'net') warnings.push('netAssumed');
 
     return {
-      ok: true, type: type, system: system, cityKey: p.city in CITIES ? p.city : 'riyadh', city: city, yieldKwh: yieldKwh, L: L, W: W, tilt: tilt,
+      ok: true, type: type, system: system, cityKey: cityKey, city: city, yieldKwh: yieldKwh, pro: pro, sv: sv, finLow: finLow, prodLow: prod * lowScale, perf: pro.perf, L: L, W: W, tilt: tilt,
       panel: panel, inv: inv, invQty: qty, invKw: invKwTotal, dcac: dcac, monthly: monthly, annual: annual, billNow: billNow, billAfter: billAfter,
       cols: cols, rows: rows, total: total, slots: slots, blocked: slots.filter(function (q) { return q.st === 'obs'; }).length, x0: x0, y0: y0, obsRects: obsRects, avail: avail.length, need: need, n: n, limited: n < need && !p.manual,
       pitchX: pitchX, pitchY: pitchY, fp: fp, kwp: kwp, prod: prod, daily: prod / 365, strings: strings, bat: bat, elec: elec, parts: parts, cost: cost,
-      save: save, fin: fin, payback: fin.payback, coverage: Math.min(1, prod / annual), co2: prod * A.co2, warnings: warnings,
+      save: save, fin: fin, payback: fin.payback, coverage: Math.min(1, prod / annual), costStatus: P_.status, dataVersion: DATA_VERSION, dataDate: D.RETRIEVED, tariffSet: A.tariffSet, exportMode: A.exportMode, co2: prod * A.co2, warnings: warnings,
       equipVerified: !!(panel.verified && inv.verified && (!bat || bat.unit.verified)),
       components: [
         { key: 'panels', qty: n, power: kwp.toFixed(1) + ' kWp', cost: parts.panels, item: panel.name },
@@ -232,7 +307,13 @@
     };
   }
 
-  var api = { DEFAULTS: DEFAULTS, CITIES: CITIES, TYPES: TYPES, DEF_EQUIP: DEF_EQUIP, STD_BREAKER: STD_BREAKER, design: design, bess: bess, financial: financial,
+  // reference yield per city (optimal tilt, default panel, nominal inverter) — informational for the UI
+  (function () {
+    var pn = DEF_EQUIP.filter(function (e) { return e.kind === 'panel'; })[0];
+    Object.keys(CITIES).forEach(function (k) { CITIES[k].yield = Math.round(production({ city: k, tilt: CITIES[k].tiltOpt, kwp: 1, panel: pn, inv: null }, DEFAULTS).specific); });
+  })();
+
+  var api = { DATA: D, DATA_VERSION: DATA_VERSION, CLASS_OF: CLASS_OF, production: production, performance: performance, savings: savings, billEx: billEx, tariffTable: tariffTable, assumptionList: null, DEFAULTS: DEFAULTS, CITIES: CITIES, TYPES: TYPES, DEF_EQUIP: DEF_EQUIP, STD_BREAKER: STD_BREAKER, design: design, bess: bess, financial: financial,
     stringConfig: stringConfig, cableSize: cableSize, billFromKwh: billFromKwh, kwhFromBill: kwhFromBill, nextStd: nextStd, equip: equip };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.Calc = api;
