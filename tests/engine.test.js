@@ -112,6 +112,37 @@ t('size options: 8 rows, exported share never falls as the array grows, flows ba
 });
 t('sizePct=50 builds about half the array', () => { const f = C.design(Object.assign({}, base, { cons: 2500, len: 40, wid: 30 })), h = C.design(Object.assign({}, base, { cons: 2500, len: 40, wid: 30, sizePct: 50 })); assert.ok(Math.abs(h.n - Math.ceil(f.n * 0.5)) <= 1); });
 
+console.log('Audit trail, unknown consumption, new building types');
+t('audit: monthly production rows = kWp x irradiance x days x tiltFactor x PR x orientation, and sum to the annual production', () => {
+  const R = C.design(Object.assign({}, base, { azDev: 45 })), a = C.audit(R); let s = 0;
+  a.production.rows.forEach(r => { near(r.prod, R.kwp * r.psh * a.production.pr * a.production.orient, 1e-6); s += r.prod; });
+  near(s, R.prod, 1e-6); near(a.production.sum, R.prod, 1e-6); assert.strictEqual(a.production.rows.length, 12);
+});
+t('audit: bill saving per month = bill now - bill after; their sum equals the reported saving (no export credit)', () => {
+  const R = C.design(base), a = C.audit(R); a.savings.rows.forEach(r => near(r.saving, r.billNow - r.billAfter, 1e-9)); near(a.savings.sum, R.save - R.sv.credit, 1e-6); assert.strictEqual(R.sv.credit, 0);
+});
+t('audit: payback year is where the cumulative cash flow crosses zero', () => {
+  const R = C.design(Object.assign({}, base, { cons: 2500, len: 40, wid: 30 })), a = C.audit(R), p = a.payback.payback; assert.ok(p > 0);
+  const y = a.payback.years, k = Math.floor(p); assert.ok(y[k - 1].cum < 0 && y[k].cum >= 0 - 1e-6);
+});
+t('audit: tier boundary - 6000 kWh/month residential bill = 6000 x 0.21 (y2027), billEx above adds 0.33 per kWh', () => { near(C.billEx(6000, 'villa'), 1260, 1e-9); near(C.billEx(7000, 'villa'), 1260 + 330, 1e-9); });
+t('unknown consumption: no saving is presented as the customer\'s; system fills the roof; 3 labelled scenarios; confidence low', () => {
+  const R = C.design(Object.assign({}, base, { mode: 'none', cons: '' })); assert.ok(R.ok && R.noCons); assert.strictEqual(R.n, R.avail); assert.strictEqual(R.scen.length, 3); assert.deepStrictEqual(R.scen.map(s => s.kwh), [1000, 2500, 5000]);
+  assert.strictEqual(R.conf.level, 'low'); assert.strictEqual(R.sizing.rows.length, 0); assert.ok(R.scen[0].coverage > R.scen[2].coverage);
+});
+t('scenario savings rise with consumption and are never above the production valued at the top tariff rate', () => {
+  const R = C.design(Object.assign({}, base, { mode: 'none', cons: '' })); assert.ok(R.scen[0].save <= R.scen[1].save + 1e-9 && R.scen[1].save <= R.scen[2].save + 1e-9); R.scen.forEach(s => assert.ok(s.save <= R.prod * 0.33 * 1.15 + 1e-6));
+});
+t('AC load with two AC kinds: 2 x 1.5 t + 1 x 24000 BTU (2 t) = 5 t total; kW = 5 x 12000 / 10 / 1000 = 6 kW', () => {
+  const a = C.acLoad({ rows: [{ units: 2, tons: 1.5 }, { units: 1, btu: 24000 }], hours: 10, type: 'villa' }); near(a.kwTotal, 6, 1e-9); near(a.units, 3, 1e-9); near(a.acAnnual, 6 * 10 * 206.15 * 0.7, 0.01);
+});
+t('AC capacity unknown defaults to 1.5 t per unit (assumption)', () => near(C.acLoad({ rows: [{ units: 2 }], hours: 10, type: 'villa' }).kwTotal, 2 * 1.5 * 1.2, 1e-9));
+t('new types: house is residential, admin/other are commercial; each has base load, daylight share and height', () => {
+  ['house', 'admin', 'other'].forEach(k => { assert.ok(C.TYPES[k] && C.CLASS_OF[k] && C.DEFAULTS.selfUse[k] > 0 && D.USE.baseLoadKwh[k] > 0); }); assert.strictEqual(C.CLASS_OF.house, 'residential'); assert.strictEqual(C.CLASS_OF.admin, 'commercial');
+  assert.ok(C.design(Object.assign({}, base, { type: 'house' })).ok);
+});
+t('approximate roof dimensions add 5 points to the range', () => { const a = C.design(Object.assign({}, base, { azDev: 0, shade: 'none' })), b = C.design(Object.assign({}, base, { azDev: 0, shade: 'none', dimsApprox: true })); near(b.conf.rangePct - a.conf.rangePct, 5, 1e-9); });
+
 console.log('Data provenance');
 t('every tariff class cites a source that exists', () => Object.values(D.TARIFF.sets).forEach(s => Object.values(s.classes).forEach(c => { assert.strictEqual(c.status, 'sourced'); c.src.forEach(k => assert.ok(D.SOURCES[k], k)); })));
 t('every verified equipment record cites a source that exists', () => D.EQUIP.filter(e => e.verified).forEach(e => assert.ok(D.SOURCES[e.source], e.id)));

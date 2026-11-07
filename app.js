@@ -149,6 +149,43 @@
     return '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(t('perf.chartAlt')) + '">' + s + '</svg><div class="legend"><span><i class="lg on" style="background:var(--g)"></i>' + t('perf.prod') + '</span><span><i class="lg" style="border-top:2px dashed var(--gold);height:0"></i>' + t('perf.cons') + '</span></div>';
   }
 
+
+  // ---------- calculation review (audit trail rendered from Calc.audit) ----------
+  function tbl(head, rows, cls) { return '<div class="tblwrap"><table class="' + (cls || '') + '"><thead><tr>' + head.map(function (h) { return '<th>' + h + '</th>'; }).join('') + '</tr></thead><tbody>' + rows.join('') + '</tbody></table></div>'; }
+  function tr(cells, cls) { return '<tr' + (cls ? ' class="' + cls + '"' : '') + '>' + cells.map(function (c) { return '<td>' + c + '</td>'; }).join('') + '</tr>'; }
+  function d2(x) { return Number(x).toFixed(2); }
+  function lossTable(R) {
+    var pf = R.pro.perf, pc = function (x) { return (x * 100).toFixed(1) + '%'; };
+    return tbl([t('as2.item') || '', t('as2.value') || ''], [
+      tr([t('ls.temp'), '−' + pc(pf.parts.temperature)]), tr([t('ls.soil'), '−' + pc(pf.parts.soiling)]), tr([t('ls.mis'), '−' + pc(pf.parts.mismatchDc)]), tr([t('ls.wire'), '−' + pc(pf.parts.wiringAc)]), tr([t('ls.avail'), '−' + pc(pf.parts.availability)]), tr([t('ls.inv'), pc(pf.invEff)]),
+      tr(['<b>' + t('ls.pr') + '</b>', '<b>' + pc(pf.pr) + '</b>']), tr([t('ls.tilt') + ' (' + R.tilt + '°)', d2(R.pro.tiltFactor)]), tr([t('ls.az'), R.azKnown ? d2(R.orient) : '1.00 (' + t('az.unk') + ')']), tr([t('ls.shade'), t('ls.shadeV')])
+    ]);
+  }
+  function scenarioHTML(R) {
+    if (!R.noCons) return '';
+    return '<div class="warnbox"><p>' + t('fn.scen') + '</p></div>' + tbl([t('fn.scenRow', { k: '' }).replace(/\s*$/, ''), t('fn.save'), t('fn.pay'), t('pr.cover')], R.scen.map(function (s) { return tr([fmt(s.kwh) + ' kWh', money(s.save), s.payback == null ? t('au.never') : s.payback.toFixed(1) + ' ' + t('yr'), Math.round(s.coverage * 100) + '%']); })) + '<p class="note">' + t('fn.scenAdd') + '</p>';
+  }
+  function auditHTML(R) {
+    var a = Calc.audit(R); if (!a) return '';
+    var P = a.production, F = a.flows, Sv = a.savings, Co = a.cost, Pb = a.payback, h = '<p class="note">' + t('au.intro') + '</p>';
+    h += '<h4>' + t('au.p1') + '</h4><p class="formula">' + t('au.p1f') + '</p><p class="note">' + t('au.irrSrc') + '</p>';
+    h += kv('kWp', P.kwp.toFixed(2)) + kv('PR', d2(P.pr)) + kv(t('ls.tilt'), d2(P.tiltFactor)) + kv(t('ls.az'), d2(P.orient));
+    h += tbl([t('au.mon'), t('au.days'), t('au.irr'), t('au.psh'), t('au.prod')], P.rows.map(function (r) { return tr([String(r.m + 1), r.days, d2(r.irr), d2(r.psh), fmt(r.prod)]); }).concat([tr(['<b>' + t('au.tot') + '</b>', '365', '', '', '<b>' + fmt(P.sum) + '</b>'])]));
+    if (R.noCons) return h + '<p class="note">' + t('fn.scen') + '</p>' + scenarioHTML(R).replace(/^<div class="warnbox">.*?<\/div>/, '') + auditCost(R, a);
+    h += '<h4>' + t('au.p2') + '</h4><p class="formula">' + t('au.p2f') + '</p>' + kv(t('au.share'), Math.round(Sv.selfUse * 100) + '%', 'assumption') + kv(t('au.cons'), fmt(F.consumption) + ' kWh') + kv(t('pr.annual'), fmt(F.production) + ' kWh') + kv(t('au.direct'), fmt(F.direct) + ' kWh') + kv(t('au.exp'), fmt(F.exported) + ' kWh') + kv(t('au.grid'), fmt(F.gridAfter) + ' kWh');
+    h += '<h4>' + t('au.p3') + '</h4><p class="formula">' + t('au.p3f') + '</p><p class="note">' + t('au.tar', { a: Sv.tariff[0], l: fmt(Sv.tariff[1]), b: Sv.tariff[2], v: Sv.vf.toFixed(2) }) + '</p>';
+    h += tbl([t('au.mon'), t('au.prod'), t('au.netk'), t('au.before'), t('au.after'), t('au.saving')], Sv.rows.map(function (r) { return tr([String(r.m + 1), fmt(r.prod), fmt(r.netKwh), fmt(r.billNow), fmt(r.billAfter), fmt(r.saving)]); }).concat([tr(['<b>' + t('au.tot') + '</b>', '', '', '', '', '<b>' + fmt(Sv.sum) + '</b>'])]));
+    return h + auditCost(R, a);
+  }
+  function auditCost(R, a) {
+    var Co = a.cost, Pb = a.payback, h = '<h4>' + t('au.p4') + '</h4><p class="formula">' + t('au.p4f') + '</p>' + kv(t('au.rate'), money(Co.rate), 'assumption') + kv('kWp × ' + fmt(Co.rate), money(Co.kwp * Co.rate)) + Object.keys(Co.parts).filter(function (k) { return Co.parts[k] > 0; }).map(function (k) { return kv(t('comp.' + k), money(Co.parts[k])); }).join('') + kv('<b>' + t('fn.cost') + '</b>', '<b>' + money(Co.total) + '</b>') + '<p class="note">' + t('au.costStat') + '</p>';
+    if (R.noCons) return h;
+    h += '<h4>' + t('au.p5') + '</h4><p class="formula">' + t('au.p5f') + '</p><p class="note">' + t('au.p5n', { a: Pb.degrYear1, b: Pb.degr, c: Pb.om }) + '</p>';
+    var stop = Pb.payback == null ? 12 : Math.min(Pb.years.length, Math.ceil(Pb.payback) + 1);
+    h += tbl([t('au.year'), t('au.deg'), t('fn.save'), t('au.om'), t('au.repl'), t('au.net'), t('au.cum')], Pb.years.slice(0, Math.max(stop, 3)).map(function (y) { return tr([String(y.y), d2(y.factor), fmt(y.saving), fmt(y.om), fmt(y.repl), fmt(y.net), fmt(y.cum)], Pb.payback != null && y.y === Math.ceil(Pb.payback) ? 'hit' : ''); }));
+    return h + '<p><b>' + t('fn.pay') + ': ' + (Pb.payback == null ? t('au.never') : Pb.payback.toFixed(1) + ' ' + t('yr')) + '</b></p>';
+  }
+
   // ---------- 2D / 3D viewer (interactive) ----------
   function destroyViewer() { if (viewer) { viewer.destroy(); viewer = null; } }
   function viewerHTML(R, p, o) {
@@ -341,10 +378,11 @@
     var d = new Date().toLocaleDateString(S.lang === 'ar' ? 'ar-SA' : 'en-GB');
     var h = '<div class="rhead"><div><h1>' + t(tech ? 'rep.techTitle' : 'rep.title') + '</h1><div>' + esc(p.name || '-') + ' · ' + t('type.' + R.type) + ' · ' + cityName(R.cityKey) + ' · ' + t('sys.' + R.system) + '</div></div><div class="rbrand"><img class="rlogo" src="assets/logo-shaqaf-160.png" alt="' + t('brand') + '"><div>' + d + '</div></div></div>';
     h += '<div class="rstatus">' + tag('est') + (p.simulated ? ' ' + tag('sim') : '') + ' ' + (R.equipVerified ? tag('ver') : '<span class="tag usr">' + t('rep.unverified') + '</span>') + '</div>';
-    h += '<h2>' + t('rep.summary') + '</h2><div class="rgrid"><div><span>' + t('sum.kwp') + '</span><b>' + R.kwp.toFixed(1) + ' kWp</b></div><div><span>' + t('sum.panels') + '</span><b>' + R.n + '</b></div><div><span>' + t('sum.cost') + '</span><b>' + money(R.cost) + '</b></div><div><span>' + t('fin.prod') + '</span><b>' + fmt(R.prod) + ' kWh</b></div><div><span>' + t('fin.save1') + '</span><b>' + money(R.save) + '</b></div><div><span>' + t('fin.payback') + '</span><b>' + paybackText(R) + '</b></div></div>';
+    h += '<h2>' + t('rep.summary') + '</h2><div class="rgrid"><div><span>' + t('sum.kwp') + '</span><b>' + R.kwp.toFixed(1) + ' kWp</b></div><div><span>' + t('sum.panels') + '</span><b>' + R.n + '</b></div><div><span>' + t('sum.cost') + '</span><b>' + money(R.cost) + '</b></div><div><span>' + t('fin.prod') + '</span><b>' + fmt(R.prod) + ' kWh</b></div><div><span>' + t('fin.save1') + '</span><b>' + (R.noCons ? '—' : money(R.save)) + '</b></div><div><span>' + t('fin.payback') + '</span><b>' + (R.noCons ? '—' : paybackText(R)) + '</b></div></div>';
     h += '<h2 id="rep-plan">' + t('rep.layout') + '</h2><div class="rroof">' + roofSVG(R, p, {}) + '</div><h2 id="rep-3d">' + t('rep.3d') + '</h2><div class="r3d" id="r3d"></div>';
     h += '<h2 id="rep-specs">' + t('rep.components') + '</h2>' + compTable(R, true);
-    h += '<h2 id="rep-save">' + t('rep.financial') + '</h2>' + finTable(R);
+    h += '<h2 id="rep-save">' + t('rep.financial') + '</h2>' + (R.noCons ? scenarioHTML(R) : finTable(R));
+    h += '<h2>' + t('rp.s6') + '</h2>' + auditHTML(R);
     if (tech) { h += '<h2>' + t('rep.electrical') + '</h2>' + electricalHTML(R); if (R.bat) h += '<h2>' + t('rep.bess') + '</h2>' + bessHTML(R.bat, R.system !== 'offgrid'); }
     h += '<div class="disc">' + t('disclaimer') + '</div>';
     return h;
@@ -352,7 +390,7 @@
 
   // ---------- shell ----------
   var NAV = {
-    customer: [['dashboard', 'home'], ['design', 'cube'], ['projects', 'folder'], ['requests', 'list'], ['support', 'help']],
+    customer: [['dashboard', 'home'], ['design', 'cube'], ['result', 'doc'], ['projects', 'folder'], ['requests', 'list'], ['support', 'help']],
     engineer: [['dashboard', 'home'], ['projects', 'folder'], ['customers', 'users'], ['studio', 'cube'], ['tools', 'tool'], ['equipment', 'box'], ['reports', 'doc'], ['requests', 'list'], ['team', 'users'], ['config', 'cog']]
   };
   var views = { customer: {}, engineer: {} };
@@ -367,9 +405,18 @@
     $('#roleLab').textContent = t('role.label'); $('#langBtn').textContent = S.lang === 'ar' ? 'EN' : 'عربي'; $('#langBtn').setAttribute('aria-label', t('lang.switch'));
     $('#who').textContent = S.profile.name ? S.profile.name : t('welcome');
     var cust = S.role === 'customer', rs = $('#roleSel'), rl = $('#roleLab'); rs.hidden = cust; rl.hidden = cust;
+    $('#root').classList.toggle('site', cust); $('#hdrCta').textContent = t('site.start'); $('#langBtn2').textContent = S.lang === 'ar' ? 'EN' : 'عربي'; $('#langBtn2').setAttribute('aria-label', t('lang.switch'));
+    var ft = $('#siteFoot'); ft.innerHTML = cust ? '<div class="fl"><a href="#projects">' + t('site.foot1') + '</a><a href="#requests">' + t('site.foot2') + '</a><a href="#support">' + t('site.foot3') + '</a><button type="button" id="roleLink2" class="linkbtn">' + t('nav.eng') + '</button></div><p>' + t('brand') + ' · ' + t('slogan') + '</p>' : '';
+    var rl2 = $('#roleLink2'); if (rl2) rl2.onclick = function () { S.role = 'engineer'; persist(); UI.sel = null; location.hash = '#dashboard'; route(); };
     var lk = $('#roleLink'); lk.textContent = t(cust ? 'nav.eng' : 'nav.cust'); lk.onclick = function () { S.role = cust ? 'engineer' : 'customer'; persist(); UI.sel = null; UI.step = 1; location.hash = '#dashboard'; route(); };
   }
   function renderNav(cur) {
+    if (S.role === 'customer') {
+      var L = [['dashboard', 'site.home', null], ['dashboard', 'site.how', 'how'], ['dashboard', 'site.features', 'features'], ['dashboard', 'site.contact', 'contact']];
+      $('#links').innerHTML = L.map(function (n) { return '<a href="#dashboard" data-sc="' + (n[2] || '') + '"' + (n[2] === null && cur === 'dashboard' ? ' aria-current="page"' : '') + '>' + t(n[1]) + '</a>'; }).join('');
+      $$('#links a').forEach(function (el) { el.onclick = function (e) { var id = el.dataset.sc; UI.scrollTo = id || null; if ((location.hash.replace('#', '') || 'dashboard') !== 'dashboard') return; e.preventDefault(); if (id) { var x = document.getElementById(id); if (x) x.scrollIntoView({ behavior: 'smooth' }); } else window.scrollTo({ top: 0, behavior: 'smooth' }); }; });
+      return;
+    }
     $('#links').innerHTML = NAV[S.role].map(function (n) { return '<a href="#' + n[0] + '"' + (n[0] === cur ? ' aria-current="page"' : '') + '>' + icon(n[1]) + t('nav.' + S.role + '.' + n[0]) + '</a>'; }).join('');
   }
   function route() {
@@ -382,6 +429,7 @@
     $('#sum').innerHTML = v.sum ? (typeof v.sum === 'string' ? v.sum : '') : '';
     document.title = t('brand');
     if (v.bind) v.bind(); window.scrollTo(0, 0);
+    if (UI.scrollTo) { var sx = document.getElementById(UI.scrollTo); UI.scrollTo = null; if (sx) sx.scrollIntoView(); }
     var h = $('#view h1, #view h2'); if (h) { /* keep focus order natural */ }
   }
   function go(name) { if (location.hash === '#' + name) route(); else location.hash = '#' + name; }
@@ -393,7 +441,7 @@
 
   var App = {
     t: t, esc: esc, fmt: fmt, money: money, A: A, lib: lib, design: design, persist: persist, UI: UI, views: views, icon: icon, tag: tag, kv: kv, stat: stat, paybackText: paybackText, assumptionTable: assumptionTable,
-    inp: inp, sel: sel, chk: chk, fld: fld, cityOpts: cityOpts, cityName: cityName, bindFields: bindFields, warnList: warnList, errBox: errBox, roofSVG: roofSVG, flowSVG: flowSVG,
+    auditHTML: auditHTML, scenarioHTML: scenarioHTML, lossTable: lossTable, tbl: tbl, tr: tr, monthlyChart: monthlyChart, flowsHTML: flowsHTML, assumptionTable: assumptionTable, roofSVG: roofSVG, inp: inp, sel: sel, chk: chk, fld: fld, cityOpts: cityOpts, cityName: cityName, bindFields: bindFields, warnList: warnList, errBox: errBox, roofSVG: roofSVG, flowSVG: flowSVG,
     cashChart: cashChart, monthlyChart: monthlyChart, viewerHTML: viewerHTML, bindViewer: bindViewer, showViewer: showViewer, summaryHTML: summaryHTML, setSummary: setSummary,
     finTable: finTable, compTable: compTable, electricalHTML: electricalHTML, bessHTML: bessHTML, reportHTML: reportHTML, go: go, route: route, armDelete: armDelete, copyText: copyText,
     refresh: function () { S = St.get(); }, getp: getp, setp: setp, $: $, $$: $$, canPrint: function () { return CAN_PRINT; }, S: function () { return S; }
@@ -404,6 +452,7 @@
     S = St.load();
     $('#roleSel').addEventListener('change', function (e) { S.role = e.target.value; persist(); UI.sel = null; UI.step = 1; location.hash = '#dashboard'; route(); });
     $('#langBtn').addEventListener('click', function () { S.lang = S.lang === 'ar' ? 'en' : 'ar'; persist(); route(); });
+    $('#langBtn2').addEventListener('click', function () { S.lang = S.lang === 'ar' ? 'en' : 'ar'; persist(); route(); });
     root.addEventListener('hashchange', route);
     route();
   });

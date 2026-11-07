@@ -32,14 +32,14 @@
     // tariff regime + export
     tariffSet: 'y2027',
     exportMode: 'self',       // 'self' (direct use + surplus credit, default: conservative) | 'net' (kWh netting, only if the utility applies it)
-    selfUse: { villa: 0.45, company: 0.8, warehouse: 0.75, factory: 0.9 }, // ASSUMPTION: share of consumption falling in daylight hours (no load profile given)
+    selfUse: { villa: 0.45, house: 0.45, company: 0.8, admin: 0.8, warehouse: 0.75, factory: 0.9, other: 0.6 }, // ASSUMPTION: share of consumption falling in daylight hours (no load profile given)
     surplusCredit: 0,         // SAR/kWh; the SERA proposal (0.07 / 0.05) is not in force
     vatRecoverable: { residential: false, commercial: true, industrial: true }
   };
 
-  var CLASS_OF = { villa: 'residential', company: 'commercial', warehouse: 'commercial', factory: 'industrial' };
+  var CLASS_OF = { villa: 'residential', house: 'residential', company: 'commercial', admin: 'commercial', warehouse: 'commercial', factory: 'industrial', other: 'commercial' };
   var TYPES = {
-    villa: { kind: 'residential', height: 7 }, company: { kind: 'commercial', height: 12 },
+    villa: { kind: 'residential', height: 7 }, house: { kind: 'residential', height: 6 }, company: { kind: 'commercial', height: 12 }, admin: { kind: 'commercial', height: 14 }, other: { kind: 'commercial', height: 8 },
     warehouse: { kind: 'commercial', height: 8 }, factory: { kind: 'industrial', height: 10 }
   };
   function tariffTable(setKey) {
@@ -203,11 +203,14 @@
 
   // ---------- customer-input models ----------
   function acLoad(o, A) {
-    A = A_(A); var U = D.USE, units = Math.max(0, num(o.units, 0)), tons = Math.max(0, num(o.tons, 1.5)), hrs = Math.min(24, Math.max(0, num(o.hours, 10)));
-    var kw = tons * U.acBtuPerTon.value / U.acEer.value / 1000, months = [];
-    for (var m = 0; m < 12; m++) months.push(units * kw * hrs * D.DAYS[m] * U.acSeason[D.IRR.monthSeason[m]] * U.acLoadFactor.value);
+    A = A_(A); var U = D.USE, hrs = Math.min(24, Math.max(0, num(o.hours, 10)));
+    /* rows: [{units, tons | btu}] (several AC kinds); a single {units, tons} also works. Unknown capacity = 1.5 t (assumption). */
+    var rows = o.rows && o.rows.length ? o.rows : [{ units: o.units, tons: o.tons }], units = 0, kwSum = 0;
+    rows.forEach(function (r) { var u = Math.max(0, num(r.units, 0)), tn = r.btu > 0 ? r.btu / U.acBtuPerTon.value : (r.tons > 0 ? Number(r.tons) : 1.5); units += u; kwSum += u * tn * U.acBtuPerTon.value / U.acEer.value / 1000; });
+    var kw = units > 0 ? kwSum / units : 0, months = [];
+    for (var m = 0; m < 12; m++) months.push(kwSum * hrs * D.DAYS[m] * U.acSeason[D.IRR.monthSeason[m]] * U.acLoadFactor.value);
     var base = U.baseLoadKwh[o.type] != null ? U.baseLoadKwh[o.type] : 500, annualAc = months.reduce(function (a, v) { return a + v; }, 0);
-    return { acMonths: months, acAnnual: annualAc, base: base, monthlyAvg: annualAc / 12 + base, annual: annualAc + base * 12, unitKw: kw };
+    return { acMonths: months, acAnnual: annualAc, base: base, monthlyAvg: annualAc / 12 + base, annual: annualAc + base * 12, unitKw: kw, units: units, kwTotal: kwSum, hours: hrs };
   }
   function azFactor(dev) {
     var U = D.USE.azimuth, d = Math.min(180, Math.abs(num(dev, 0)));
@@ -219,6 +222,8 @@
     if (flags.azUnknown) { pct += U.azUnknown; miss.push('azimuth'); }
     if (flags.shade === 'unknown') { pct += U.shadeUnknown; miss.push('shade'); } else if (flags.shade === 'some') { pct += U.shadeSome; miss.push('shadeSome'); }
     if (flags.consFromAc) { pct += U.consFromAc; miss.push('consFromAc'); }
+    if (flags.consUnknown) { pct += U.consUnknown; miss.push('consUnknown'); }
+    if (flags.dimsApprox) { pct += U.dimsApprox; miss.push('dimsApprox'); }
     return { rangePct: pct, level: pct <= U.highMax ? 'high' : pct <= U.mediumMax ? 'medium' : 'low', missing: miss };
   }
 
@@ -228,13 +233,13 @@
     var type = TYPES[p.type] ? p.type : 'villa', city = CITIES[p.city] || CITIES.riyadh, system = ['grid', 'hybrid', 'offgrid'].indexOf(p.system) >= 0 ? p.system : 'grid';
     var L = num(p.len, 0), W = num(p.wid, 0), cons = num(p.cons, 0);
     if (!(L >= 3 && L <= 300 && W >= 3 && W <= 300)) return { ok: false, error: 'dims' };
-    var acMode = p.mode === 'ac', acl = acMode ? acLoad(Object.assign({ type: type }, p.ac || {}), A) : null;
-    if (acMode ? !(acl.acAnnual > 0) : !(cons > 0)) return { ok: false, error: acMode ? 'ac' : 'cons' };
+    var unknown = p.mode === 'none', acMode = p.mode === 'ac', acl = acMode ? acLoad(Object.assign({ type: type }, p.ac || {}), A) : null;
+    if (!unknown && (acMode ? !(acl.acAnnual > 0) : !(cons > 0))) return { ok: false, error: acMode ? 'ac' : 'cons' };
     var panel = equip(lib, p.panelId, 'panel');
-    var monthly = Math.max(100, acMode ? acl.monthlyAvg : p.mode === 'bill' ? kwhFromBill(cons, type, A) : cons), annual = monthly * 12;
+    var monthly = unknown ? DD.USE.scenarioKwh.values[1] : Math.max(100, acMode ? acl.monthlyAvg : p.mode === 'bill' ? kwhFromBill(cons, type, A) : cons), annual = monthly * 12;
     var occ = DD.USE.occupancy, occK = occ[p.daytime] != null ? occ[p.daytime] : 1, azKnown = p.azDev != null && p.azDev !== '', orient = azKnown ? azFactor(p.azDev) : 1;
     A = Object.assign({}, A, { selfUse: Object.keys(A.selfUse).reduce(function (o, k) { o[k] = Math.min(occ.cap, A.selfUse[k] * (k === type ? occK : 1)); return o; }, {}) });
-    var conf = confidence({ azUnknown: !azKnown, shade: p.shade || 'unknown', consFromAc: acMode });
+    var conf = confidence({ azUnknown: !azKnown, shade: p.shade || 'unknown', consFromAc: acMode, consUnknown: unknown, dimsApprox: !!p.dimsApprox });
     var tilt = Math.min(35, Math.max(0, num(p.tilt, 10))), t = tilt * Math.PI / 180;
     var fp = panel.len * Math.cos(t), pitchX = panel.wid + A.gap, pitchY = fp + panel.len * Math.sin(t) / Math.tan(A.sunElev * Math.PI / 180);
     var D = L - 2 * A.margin, cols = Math.max(0, Math.floor((W - 2 * A.margin) / pitchX)), rows = D >= fp ? Math.floor((D - fp) / pitchY) + 1 : 0;
@@ -258,7 +263,7 @@
     var degA = Object.assign({}, A, { degr: panel.degrAnnual != null ? panel.degrAnnual : A.degr, degrYear1: panel.degrYear1 != null ? panel.degrYear1 : A.degrYear1 });
     var yieldKwh = production({ city: cityKey, tilt: tilt, kwp: 1, panel: panel, inv: null, orient: orient }, A).specific; // sizing estimate with a nominal inverter; refined below
     var offgrid = system === 'offgrid', target = (offgrid ? annual * A.offgridOversize : annual);
-    var need = Math.ceil(target / yieldKwh / kwPanel);
+    var need = unknown ? avail.length : Math.ceil(target / yieldKwh / kwPanel);
     var sizePct = Math.min(100, Math.max(10, num(p.sizePct, 100))), nFull = Math.min(need, avail.length), n = p.manual ? avail.length : Math.max(1, Math.ceil(nFull * sizePct / 100));
     avail.forEach(function (idx, k) { slots[idx].st = k < n ? 'on' : 'free'; });
     var kwp = n * kwPanel;
@@ -304,11 +309,16 @@
     var altMode = A.exportMode === 'net' ? 'self' : 'net', altA = altMode === 'net' ? AN : AS;
     var finAlt = financial(cost, mkSave(altA, 1), prod, degA), svAlt = savings({ type: type, monthly: monthly, prodMonths: pro.months }, altA);
     var alt = { mode: altMode, save: svAlt.save, payback: finAlt.payback };
+    /* consumption unknown: savings are shown only as labelled what-if scenarios, never as the customer's own figure */
+    var scen = unknown ? DD.USE.scenarioKwh.values.map(function (kwh) {
+      var sv0 = savings({ type: type, monthly: kwh, prodMonths: pro.months }, AS), f0 = financial(cost, function (f) { return savings({ type: type, monthly: kwh, prodMonths: pro.months, scale: f }, AS).save; }, prod, degA);
+      return { kwh: kwh, save: sv0.save, payback: f0.payback, exportShare: sv0.exported / Math.max(1e-9, prod), coverage: Math.min(1, prod / (kwh * 12)) };
+    }) : null;
 
 
     // size options: same site, different array sizes. Production scales with kWp; the cost curve and the tariff model are re-applied for each size.
     var sizing = { rows: [], best: null };
-    if (!p.manual && nFull > 0) {
+    if (!p.manual && !unknown && nFull > 0) {
       [30, 40, 50, 60, 70, 80, 90, 100].forEach(function (pct) {
         var nf = Math.max(1, Math.ceil(nFull * pct / 100)), kf = nf * kwPanel, f = kf / kwp, cf = kf * costRate(kf, A) + parts.battery;
         var fn = financial(cf, mkSave(A, f), prod * f, degA), sx = savings({ type: type, monthly: monthly, prodMonths: pro.months, scale: f }, AS);
@@ -336,7 +346,7 @@
     if (A.exportMode === 'net') warnings.push('netAssumed'); else if (flows.exported > 0 && !(A.surplusCredit > 0)) warnings.push('exportUnvalued');
 
     return {
-      ok: true, conf: conf, sizing: sizing, sizePct: sizePct, orient: orient, azKnown: azKnown, acl: acl, occK: occK, type: type, system: system, cityKey: cityKey, city: city, yieldKwh: yieldKwh, pro: pro, sv: sv, finLow: finLow, flows: flows, alt: alt, prodLow: prod * lowScale, perf: pro.perf, L: L, W: W, tilt: tilt,
+      ok: true, noCons: unknown, scen: scen, conf: conf, tariff: tier(type, A), vf: vatFactor(type, A), lowScale: lowScale, A: A, sizing: sizing, sizePct: sizePct, orient: orient, azKnown: azKnown, acl: acl, occK: occK, type: type, system: system, cityKey: cityKey, city: city, yieldKwh: yieldKwh, pro: pro, sv: sv, finLow: finLow, flows: flows, alt: alt, prodLow: prod * lowScale, perf: pro.perf, L: L, W: W, tilt: tilt,
       panel: panel, inv: inv, invQty: qty, invKw: invKwTotal, dcac: dcac, monthly: monthly, annual: annual, billNow: billNow, billAfter: billAfter,
       cols: cols, rows: rows, total: total, slots: slots, blocked: slots.filter(function (q) { return q.st === 'obs'; }).length, x0: x0, y0: y0, obsRects: obsRects, avail: avail.length, need: need, n: n, limited: n < need && !p.manual,
       pitchX: pitchX, pitchY: pitchY, fp: fp, kwp: kwp, prod: prod, daily: prod / 365, strings: strings, bat: bat, elec: elec, parts: parts, cost: cost,
@@ -353,6 +363,23 @@
     };
   }
 
+
+  // ---------- audit trail: every displayed result re-derived step by step from the inputs, for review in the report ----------
+  function audit(R) {
+    if (!R || !R.ok) return null;
+    var A = R.A, c = D.CITY[R.cityKey], pf = R.pro.perf, rows = [], m;
+    for (m = 0; m < 12; m++) { var season = D.IRR.monthSeason[m], irr = c[season], days = D.DAYS[m]; rows.push({ m: m, days: days, season: season, irr: irr, psh: irr * days * R.pro.tiltFactor, prod: R.pro.months[m] }); }
+    var sumP = rows.reduce(function (a, r) { return a + r.prod; }, 0);
+    var srows = R.sv.rows.map(function (r, i) { return { m: i, prod: r.prod, cons: R.monthly, netKwh: r.netKwh, billNow: r.billNow, billAfter: r.billAfter, saving: r.saving }; });
+    return {
+      production: { rows: rows, sum: sumP, kwp: R.kwp, tilt: R.tilt, tiltFactor: R.pro.tiltFactor, orient: R.orient, pr: R.pro.pr, perf: pf, specific: R.yieldKwh },
+      flows: R.flows,
+      savings: { rows: srows, tariff: R.tariff, vf: R.vf, mode: R.exportMode, selfUse: A.selfUse[R.type], credit: R.sv.credit, sum: srows.reduce(function (a, r) { return a + r.saving; }, 0), total: R.save },
+      cost: { parts: R.parts, rate: costRate(R.kwp, A), kwp: R.kwp, total: R.cost, status: R.costStatus },
+      payback: { years: R.fin.years, payback: R.fin.payback, om: A.om, disc: A.disc, life: A.life, replYear: A.replYear, replPct: A.replPct, degrYear1: R.panel.degrYear1 != null ? R.panel.degrYear1 : A.degrYear1, degr: R.panel.degrAnnual != null ? R.panel.degrAnnual : A.degr }
+    };
+  }
+
   // reference yield per city (optimal tilt, default panel, nominal inverter) — informational for the UI
   (function () {
     var pn = DEF_EQUIP.filter(function (e) { return e.kind === 'panel'; })[0];
@@ -360,7 +387,7 @@
   })();
 
   var api = { DATA: D, DATA_VERSION: DATA_VERSION, CLASS_OF: CLASS_OF, production: production, performance: performance, savings: savings, billEx: billEx, tariffTable: tariffTable, assumptionList: null, DEFAULTS: DEFAULTS, CITIES: CITIES, TYPES: TYPES, DEF_EQUIP: DEF_EQUIP, STD_BREAKER: STD_BREAKER, design: design, bess: bess, financial: financial,
-    acLoad: acLoad, azFactor: azFactor, confidence: confidence, stringConfig: stringConfig, cableSize: cableSize, billFromKwh: billFromKwh, kwhFromBill: kwhFromBill, nextStd: nextStd, equip: equip };
+    audit: audit, acLoad: acLoad, azFactor: azFactor, confidence: confidence, stringConfig: stringConfig, cableSize: cableSize, billFromKwh: billFromKwh, kwhFromBill: kwhFromBill, nextStd: nextStd, equip: equip };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.Calc = api;
 })(typeof window !== 'undefined' ? window : globalThis);
