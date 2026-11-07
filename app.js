@@ -265,7 +265,14 @@
       '<div class="card"><h3>' + t('sum.save') + '</h3><div class="sumrow"><div><div class="big green">' + money(R.save) + '</div>' + tag('est') + '</div><div class="ring" style="--p:' + Math.min(100, Math.round(R.coverage * 100)) + '" role="img" aria-label="' + Math.round(R.coverage * 100) + '%"><b>' + Math.round(R.coverage * 100) + '%</b></div></div><p class="note">' + t('sum.ring') + '</p></div>' +
       '<div class="card"><h3>' + t('sum.prod') + '</h3><div class="big">' + fmt(R.prod) + ' kWh <small>/ ' + t('yr') + '</small></div>' + tag('est') + '<div class="bar" aria-hidden="true"><i style="width:' + Math.min(100, Math.round(R.coverage * 100)) + '%"></i></div><p class="note">' + t('sum.cover', { c: Math.round(R.coverage * 100) }) + '</p>' +
       '<p class="note">' + t('sum.range', { lo: fmt(R.prodLow), hi: fmt(R.prod) }) + '</p>' +
+      flowsHTML(R) +
       kv(t('fin.payback'), paybackText(R)) + kv(t('sum.co2'), R.co2.toFixed(1) + ' ' + t('sum.t')) + '<p class="note">' + t('disclaimer') + '</p></div>';
+  }
+  // Production, direct use, export and bill saving are four different quantities (never "every kWh saves the tariff").
+  function flowsHTML(R) {
+    var f = R.flows, alt = R.alt, altTxt = alt.payback == null ? '>' + A().life : alt.payback.toFixed(1);
+    return '<div class="flows"><h4>' + t('flow.title') + '</h4>' + kv(t('flow.prod'), fmt(f.production) + ' kWh') + kv(t('flow.direct'), fmt(f.direct) + ' kWh') + kv(t('flow.export'), fmt(f.exported) + ' kWh') + kv(t('flow.grid'), fmt(f.gridAfter) + ' kWh') +
+      '<p class="note">' + t('flow.note') + '</p><div class="altbox"><b>' + t('alt.' + alt.mode) + '</b><br>' + t('alt.line', { save: fmt(alt.save), pay: altTxt }) + '</div></div>';
   }
   function paybackText(R) {
     var life = A().life, hi = R.finLow && R.finLow.payback;

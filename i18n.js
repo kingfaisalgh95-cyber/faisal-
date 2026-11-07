@@ -309,3 +309,27 @@ Object.assign(window.I18N.en, {
   "warn.netAssumed": "Calculations assume kWh-for-kWh netting with the grid; confirm it applies with the utility before contracting.",
   "warn.mpptCurrent": "Panel current (Imp) exceeds the inverter input limit; part of the output may be clipped. Choose an inverter with a higher input current."
 });
+Object.assign(window.I18N.ar, {
+  "flow.title": "من أين يأتي التوفير؟",
+  "flow.prod": "الإنتاج السنوي المتوقع",
+  "flow.direct": "يستهلكه المبنى مباشرة",
+  "flow.export": "يُصدَّر للشبكة",
+  "flow.grid": "يبقى مشترى من الشبكة",
+  "flow.note": "التوفير يُحسب فقط على الطاقة التي يستهلكها المبنى مباشرة. الطاقة المصدَّرة لا تُحتسب إلا إذا اعتُمد لها تعويض، وهو غير مؤكد حالياً.",
+  "alt.net": "لو طُبّقت مقاصّة كيلوواط ساعة بكيلوواط ساعة",
+  "alt.self": "لو لم يُحتسب أي تعويض للفائض",
+  "alt.line": "التوفير {save} ريال سنوياً · الاسترداد {pay} سنة",
+  "warn.exportUnvalued": "جزء من الإنتاج يُصدَّر للشبكة بلا تعويض محسوب؛ يمكن تصغير النظام أو إضافة بطارية لزيادة الاستفادة المباشرة."
+});
+Object.assign(window.I18N.en, {
+  "flow.title": "Where do the savings come from?",
+  "flow.prod": "Expected annual production",
+  "flow.direct": "Used by the building directly",
+  "flow.export": "Exported to the grid",
+  "flow.grid": "Still bought from the grid",
+  "flow.note": "Savings are counted only on energy the building uses directly. Exported energy counts only if a compensation scheme applies, which is currently unconfirmed.",
+  "alt.net": "If kWh-for-kWh netting applied",
+  "alt.self": "If no credit were counted for surplus",
+  "alt.line": "Saving {save} SAR/yr · payback {pay} yrs",
+  "warn.exportUnvalued": "Part of the production is exported with no credit counted; a smaller system or a battery would raise direct use."
+});

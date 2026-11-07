@@ -31,8 +31,8 @@
     uncertaintyPct: L_.uncertaintyPct.value, invEffPenaltyPt: L_.inverterEffFallbackPenaltyPt.value,
     // tariff regime + export
     tariffSet: 'y2027',
-    exportMode: 'net',        // 'net' (kWh netting) | 'self' (self-consumption + surplus credit)
-    selfUse: { villa: 0.55, company: 0.8, warehouse: 0.75, factory: 0.9 }, // assumption, used only when exportMode='self'
+    exportMode: 'self',       // 'self' (direct use + surplus credit, default: conservative) | 'net' (kWh netting, only if the utility applies it)
+    selfUse: { villa: 0.45, company: 0.8, warehouse: 0.75, factory: 0.9 }, // ASSUMPTION: share of consumption falling in daylight hours (no load profile given)
     surplusCredit: 0,         // SAR/kWh; the SERA proposal (0.07 / 0.05) is not in force
     vatRecoverable: { residential: false, commercial: true, industrial: true }
   };
@@ -112,21 +112,21 @@
   function savings(o, A) {
     A = A_(A);
     var type = o.type, cons = o.monthly, scale = o.scale == null ? 1 : o.scale, vf = vatFactor(type, A), mode = A.exportMode;
-    var rows = [], bal = 0, save = 0, credit = 0, wasted = 0, now = 0, after = 0, exported = 0;
+    var rows = [], bal = 0, save = 0, credit = 0, wasted = 0, now = 0, after = 0, exported = 0, usedTotal = 0;
     for (var m = 0; m < 12; m++) {
       var pr = o.prodMonths[m] * scale, netKwh, used, exp = 0;
       if (mode === 'self') {
-        used = Math.min(pr * (A.selfUse[type] != null ? A.selfUse[type] : 0.6), cons); exp = pr - used; netKwh = cons - used; credit += exp * A.surplusCredit;
+        /* direct use is limited by the share of the load that falls in daylight hours */ used = Math.min(pr, cons * (A.selfUse[type] != null ? A.selfUse[type] : 0.6)); exp = pr - used; netKwh = cons - used; credit += exp * A.surplusCredit;
       } else {
         if (pr >= cons) { bal += pr - cons; netKwh = 0; used = cons; }
         else { var need = cons - pr, take = Math.min(bal, need); bal -= take; netKwh = need - take; used = cons - netKwh; }
       }
       var bn = billEx(cons, type, A) * vf, ba = billEx(netKwh, type, A) * vf;
       rows.push({ prod: pr, billNow: bn, billAfter: ba, netKwh: netKwh, saving: bn - ba });
-      now += bn; after += ba; save += bn - ba; exported += exp;
+      now += bn; after += ba; save += bn - ba; exported += exp; usedTotal += used;
     }
     if (mode !== 'self') wasted = bal;
-    return { rows: rows, save: save + credit, billNowYear: now, billAfterYear: after, credit: credit, exported: exported, unusedCarry: wasted };
+    return { rows: rows, save: save + credit, billNowYear: now, billAfterYear: after, credit: credit, exported: exported, used: usedTotal, unusedCarry: wasted };
   }
 
   // ---------- cables ----------
@@ -267,9 +267,17 @@
     // electricity bill effect (month by month, tiered tariff, export mode per assumptions)
     var sv = savings({ type: type, monthly: monthly, prodMonths: pro.months }, A), save = sv.save, billNow = billFromKwh(monthly, type, A);
     var billAfter = sv.billAfterYear / 12 * (A_(A).vatRecoverable[CLASS_OF[type]] ? 1 + VAT : 1); // shown on the same incl.-VAT basis as billNow
-    var fin = financial(cost, function (f) { return savings({ type: type, monthly: monthly, prodMonths: pro.months, scale: f }, A).save; }, prod, degA);
+    var mkSave = function (AA, k) { return function (f) { return savings({ type: type, monthly: monthly, prodMonths: pro.months, scale: f * k }, AA).save; }; };
+    var fin = financial(cost, mkSave(A, 1), prod, degA);
     var lowScale = 1 - A.uncertaintyPct / 100;
-    var finLow = financial(cost, function (f) { return savings({ type: type, monthly: monthly, prodMonths: pro.months, scale: f * lowScale }, A).save; }, prod * lowScale, degA);
+    var finLow = financial(cost, mkSave(A, lowScale), prod * lowScale, degA);
+    // The four quantities are kept apart: production, direct use, export, bill saving. Flows come from the self-consumption model.
+    var AS = Object.assign({}, A, { exportMode: 'self' }), AN = Object.assign({}, A, { exportMode: 'net' });
+    var svSelf = savings({ type: type, monthly: monthly, prodMonths: pro.months }, AS);
+    var flows = { production: prod, direct: svSelf.used, exported: svSelf.exported, gridAfter: Math.max(0, annual - svSelf.used), consumption: annual };
+    var altMode = A.exportMode === 'net' ? 'self' : 'net', altA = altMode === 'net' ? AN : AS;
+    var finAlt = financial(cost, mkSave(altA, 1), prod, degA), svAlt = savings({ type: type, monthly: monthly, prodMonths: pro.months }, altA);
+    var alt = { mode: altMode, save: svAlt.save, payback: finAlt.payback };
 
     // electrical
     var dcLen = num(p.dcLen, 30), acLen = num(p.acLen, 20), acPhase = inv.phase === 1 ? 1 : 3, V = acPhase === 3 ? 400 : 230;
@@ -287,10 +295,10 @@
     if (n < need && !p.manual) warnings.push('roofLimited');
     if (dcac > 1.4) warnings.push('dcacHigh'); if (dcac < 0.9) warnings.push('dcacLow');
     if (bat && bat.powerLimited) warnings.push('batPower');
-    if (A.exportMode === 'net') warnings.push('netAssumed');
+    if (A.exportMode === 'net') warnings.push('netAssumed'); else if (flows.exported > 0 && !(A.surplusCredit > 0)) warnings.push('exportUnvalued');
 
     return {
-      ok: true, type: type, system: system, cityKey: cityKey, city: city, yieldKwh: yieldKwh, pro: pro, sv: sv, finLow: finLow, prodLow: prod * lowScale, perf: pro.perf, L: L, W: W, tilt: tilt,
+      ok: true, type: type, system: system, cityKey: cityKey, city: city, yieldKwh: yieldKwh, pro: pro, sv: sv, finLow: finLow, flows: flows, alt: alt, prodLow: prod * lowScale, perf: pro.perf, L: L, W: W, tilt: tilt,
       panel: panel, inv: inv, invQty: qty, invKw: invKwTotal, dcac: dcac, monthly: monthly, annual: annual, billNow: billNow, billAfter: billAfter,
       cols: cols, rows: rows, total: total, slots: slots, blocked: slots.filter(function (q) { return q.st === 'obs'; }).length, x0: x0, y0: y0, obsRects: obsRects, avail: avail.length, need: need, n: n, limited: n < need && !p.manual,
       pitchX: pitchX, pitchY: pitchY, fp: fp, kwp: kwp, prod: prod, daily: prod / 365, strings: strings, bat: bat, elec: elec, parts: parts, cost: cost,
