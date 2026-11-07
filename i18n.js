@@ -446,3 +446,27 @@ Object.assign(window.I18N.en, {
 
 Object.assign(window.I18N.ar, { "res.rec": "الأعلى قيمة صافية على عمر النظام هو حجم {p}% ({k} kWp)، لأن الفائض المُصدَّر لا يُحتسب له تعويض حالياً.", "res.recBtn": "اعتمد هذا الحجم" });
 Object.assign(window.I18N.en, { "res.rec": "The highest net value over the system life is the {p}% size ({k} kWp), because exported surplus gets no credit at present.", "res.recBtn": "Use this size" });
+
+/* ---- plain-language customer flow ---- */
+Object.assign(window.I18N.ar, {
+  "s1.loc": "أين يقع مبناك؟", "geo.btn": "📍 حدد موقعي تلقائياً", "geo.ok": "أقرب مدينة مغطاة: {c} (تبعد نحو {d} كم).", "geo.far": "موقعك بعيد عن أقرب مدينة مغطاة، فالنتيجة أكثر تقريباً.", "geo.err": "تعذّر تحديد الموقع. اختر مدينتك من القائمة.", "geo.note": "موقعك يبقى على جهازك ولا يُرسل لأحد.",
+  "s1.type": "ما نوع المبنى؟", "s1.area": "مساحة السطح التقريبية (م²)", "s1.areaHint": "اضرب طول السطح في عرضه. تقدر تضبط الأبعاد بدقة في الخطوة التالية.",
+  "s1.bat": "أريد بطاريات تشغّل الكهرباء وقت الانقطاع", "s1.batHint": "البطاريات ترفع التكلفة. إن لم تكن متأكداً اتركها بلا بطاريات.",
+  "f.modeLbl": "طريقة إدخال الاستهلاك", "err.area": "أدخل مساحة السطح التقريبية بالمتر المربع.",
+  "s2.dims": "أبعاد السطح الدقيقة", "s2.dimsHint": "إن عرفتها بدقة، أدخلها بدل المساحة التقريبية.", "s2.battery": "تفاصيل البطاريات",
+  "res.sumT": "ملخص نتيجتك", "res.sys": "{n} لوح شمسي بقدرة {k} كيلوواط", "res.cov": "ينتج ما يعادل نحو {c}% من استهلاكك السنوي", "res.saveL": "توفير يقارب {s} ريال في السنة", "res.payL": "يسترد تكلفته خلال {y}",
+  "res.costL": "التكلفة التقديرية الأولية: {c} ريال. هذا تقدير بلا مصدر سعري موثق، ويُؤكَّد بعرض سعر بعد المعاينة.",
+  "res.tech": "التفاصيل الفنية والمالية والافتراضات", "res.view": "مخططك على سطح مبناك", "rep.3d": "مجسم ثلاثي الأبعاد", "nav.eng": "للمهندسين والشركات", "nav.cust": "واجهة العميل"
+});
+Object.assign(window.I18N.en, {
+  "s1.loc": "Where is your building?", "geo.btn": "📍 Find my location", "geo.ok": "Nearest covered city: {c} (about {d} km away).", "geo.far": "You are far from the nearest covered city, so the result is more approximate.", "geo.err": "Could not get your location. Pick your city from the list.", "geo.note": "Your location stays on your device and is not sent to anyone.",
+  "s1.type": "What type of building?", "s1.area": "Approximate roof area (m2)", "s1.areaHint": "Multiply roof length by width. You can set exact dimensions in the next step.",
+  "s1.bat": "I want batteries to power the home during outages", "s1.batHint": "Batteries raise the cost. If unsure, leave them out.",
+  "f.modeLbl": "How to enter your consumption", "err.area": "Enter the approximate roof area in square metres.",
+  "s2.dims": "Exact roof dimensions", "s2.dimsHint": "If you know them precisely, enter them instead of the approximate area.", "s2.battery": "Battery details",
+  "res.sumT": "Your result in brief", "res.sys": "{n} solar panels, {k} kW", "res.cov": "Produces roughly {c}% of your yearly consumption", "res.saveL": "Saves about {s} SAR per year", "res.payL": "Pays back its cost in {y}",
+  "res.costL": "Preliminary cost estimate: SAR {c}. This has no documented price source and is confirmed by a quotation after a site visit.",
+  "res.tech": "Technical, financial details and assumptions", "res.view": "Your layout on your roof", "rep.3d": "3D model", "nav.eng": "For engineers and companies", "nav.cust": "Customer view"
+});
+Object.assign(window.I18N.ar, { "viz.no3d": "تعذّر عرض المجسم ثلاثي الأبعاد على هذا الجهاز." });
+Object.assign(window.I18N.en, { "viz.no3d": "The 3D model could not be shown on this device." });

@@ -342,7 +342,7 @@
     var h = '<div class="rhead"><div><h1>' + t(tech ? 'rep.techTitle' : 'rep.title') + '</h1><div>' + esc(p.name || '-') + ' · ' + t('type.' + R.type) + ' · ' + cityName(R.cityKey) + ' · ' + t('sys.' + R.system) + '</div></div><div class="rbrand"><b>' + t('brand') + '</b><div>' + d + '</div></div></div>';
     h += '<div class="rstatus">' + tag('est') + (p.simulated ? ' ' + tag('sim') : '') + ' ' + (R.equipVerified ? tag('ver') : '<span class="tag usr">' + t('rep.unverified') + '</span>') + '</div>';
     h += '<h2>' + t('rep.summary') + '</h2><div class="rgrid"><div><span>' + t('sum.kwp') + '</span><b>' + R.kwp.toFixed(1) + ' kWp</b></div><div><span>' + t('sum.panels') + '</span><b>' + R.n + '</b></div><div><span>' + t('sum.cost') + '</span><b>' + money(R.cost) + '</b></div><div><span>' + t('fin.prod') + '</span><b>' + fmt(R.prod) + ' kWh</b></div><div><span>' + t('fin.save1') + '</span><b>' + money(R.save) + '</b></div><div><span>' + t('fin.payback') + '</span><b>' + paybackText(R) + '</b></div></div>';
-    h += '<h2 id="rep-plan">' + t('rep.layout') + '</h2><div class="rroof">' + roofSVG(R, p, {}) + '</div>';
+    h += '<h2 id="rep-plan">' + t('rep.layout') + '</h2><div class="rroof">' + roofSVG(R, p, {}) + '</div><h2 id="rep-3d">' + t('rep.3d') + '</h2><div class="r3d" id="r3d"></div>';
     h += '<h2 id="rep-specs">' + t('rep.components') + '</h2>' + compTable(R, true);
     h += '<h2 id="rep-save">' + t('rep.financial') + '</h2>' + finTable(R);
     if (tech) { h += '<h2>' + t('rep.electrical') + '</h2>' + electricalHTML(R); if (R.bat) h += '<h2>' + t('rep.bess') + '</h2>' + bessHTML(R.bat, R.system !== 'offgrid'); }
@@ -352,7 +352,7 @@
 
   // ---------- shell ----------
   var NAV = {
-    customer: [['dashboard', 'home'], ['projects', 'folder'], ['design', 'cube'], ['reports', 'doc'], ['requests', 'list'], ['profile', 'user'], ['support', 'help']],
+    customer: [['dashboard', 'home'], ['design', 'cube'], ['projects', 'folder'], ['requests', 'list'], ['support', 'help']],
     engineer: [['dashboard', 'home'], ['projects', 'folder'], ['customers', 'users'], ['studio', 'cube'], ['tools', 'tool'], ['equipment', 'box'], ['reports', 'doc'], ['requests', 'list'], ['team', 'users'], ['config', 'cog']]
   };
   var views = { customer: {}, engineer: {} };
@@ -366,6 +366,8 @@
     $('#roleSel').innerHTML = [['customer', t('role.customer')], ['engineer', t('role.engineer')]].map(function (r) { return '<option value="' + r[0] + '"' + (S.role === r[0] ? ' selected' : '') + '>' + r[1] + '</option>'; }).join('');
     $('#roleLab').textContent = t('role.label'); $('#langBtn').textContent = S.lang === 'ar' ? 'EN' : 'عربي'; $('#langBtn').setAttribute('aria-label', t('lang.switch'));
     $('#who').textContent = S.profile.name ? S.profile.name : t('welcome');
+    var cust = S.role === 'customer', rs = $('#roleSel'), rl = $('#roleLab'); rs.hidden = cust; rl.hidden = cust;
+    var lk = $('#roleLink'); lk.textContent = t(cust ? 'nav.eng' : 'nav.cust'); lk.onclick = function () { S.role = cust ? 'engineer' : 'customer'; persist(); UI.sel = null; UI.step = 1; location.hash = '#dashboard'; route(); };
   }
   function renderNav(cur) {
     $('#links').innerHTML = NAV[S.role].map(function (n) { return '<a href="#' + n[0] + '"' + (n[0] === cur ? ' aria-current="page"' : '') + '>' + icon(n[1]) + t('nav.' + S.role + '.' + n[0]) + '</a>'; }).join('');

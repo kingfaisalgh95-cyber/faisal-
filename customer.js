@@ -67,7 +67,7 @@
   // ----- design studio: 3 steps (building, optional details, result) with a live 2D/3D preview -----
   function draft() {
     var s = S();
-    if (!s.draft) { s.draft = St.newProject({ customerName: s.profile.name, phone: s.profile.phone, city: s.profile.city, len: '', wid: '', cons: '', mode: 'bill', ac: { units: 4, tons: 2, hours: 10 } }); App.persist(); }
+    if (!s.draft) { s.draft = St.newProject({ customerName: s.profile.name, phone: s.profile.phone, city: s.profile.city, len: '', wid: '', area: '', cons: '', mode: 'bill', ac: { units: 4, tons: 2, hours: 10 } }); App.persist(); }
     if (!s.draft.ac) s.draft.ac = { units: 4, tons: 2, hours: 10 };
     return s.draft;
   }
@@ -81,23 +81,25 @@
     }).join('') + '</div>';
   }
   function consBlock(p) {
-    var h = App.fld(t('f.mode'), App.sel('mode', p, [['bill', t('f.modeBill')], ['kwh', t('f.modeKwh')], ['ac', t('f.modeAc')]]));
+    var h = App.fld(t('f.modeLbl'), App.sel('mode', p, [['bill', t('f.modeBill')], ['kwh', t('f.modeKwh')], ['ac', t('f.modeAc')]]));
     if (p.mode === 'ac') return h + '<div class="row">' + App.fld(t('ac.units'), App.inp('ac.units', p, { min: 1, max: 200 })) + App.fld(t('ac.tons'), App.inp('ac.tons', p, { min: 0.5, max: 10, step: 0.5 })) + '</div>' + App.fld(t('ac.hours'), App.inp('ac.hours', p, { min: 1, max: 24 }), t('ac.note'));
     return h + App.fld(p.mode === 'bill' ? t('f.consBill2') : t('f.consKwh2'), App.inp('cons', p, { min: 1 }), t('f.consHint2'));
   }
   function stepBody(p) {
     var n = UI.step;
     if (n === 1) {
-      var sys = ['grid', 'hybrid', 'offgrid'];
       return '<h3>' + t('w.s1t') + '</h3><p class="note">' + t('w.s1h') + '</p>' +
-        '<label>' + t('f.type') + '</label>' + typeChips(p) + App.fld(t('f.city'), App.sel('city', p, App.cityOpts())) +
+        '<h4>' + t('s1.loc') + '</h4>' + App.fld(t('f.city'), App.sel('city', p, App.cityOpts())) + '<button class="btn ghost small" type="button" id="geoBtn">' + t('geo.btn') + '</button><p class="note" id="geoMsg" role="status">' + t('geo.note') + '</p>' +
         '<h4>' + t('w.loadT') + '</h4><div id="consBox">' + consBlock(p) + '</div>' +
-        '<h4>' + t('w.roofT') + '</h4><div class="row">' + App.fld(t('f.len'), App.inp('len', p, { min: 3, max: 300 }), t('f.lenHint')) + App.fld(t('f.wid'), App.inp('wid', p, { min: 3, max: 300 })) + '</div><p class="note">' + t('f.area') + ': <b id="areaT">' + fmt((p.len || 0) * (p.wid || 0)) + '</b> m²</p>' +
-        '<h4>' + t('w.sysT') + '</h4><div class="types three-c" id="sysBtns">' + sys.map(function (k) { return '<button type="button" data-sys="' + k + '" aria-pressed="' + (p.system === k) + '">' + App.icon(k) + t('sys.' + k) + '<small>' + t('sys.' + k + 'T') + '</small></button>'; }).join('') + '</div><div id="batBox">' + batBox(p) + '</div>';
+        '<h4>' + t('s1.type') + '</h4>' + typeChips(p) +
+        '<h4>' + t('w.roofT') + '</h4>' + App.fld(t('s1.area'), App.inp('area', p, { min: 9, max: 20000 }), t('s1.areaHint')) +
+        '<div class="card inner">' + '<label class="check"><input type="checkbox" id="batChk"' + (p.system !== 'grid' ? ' checked' : '') + '> ' + t('s1.bat') + '</label><p class="note">' + t('s1.batHint') + '</p></div>';
     }
     if (n === 2) {
       var azv = (p.azDev === '' || p.azDev == null) ? '' : String(p.azDev);
       return '<h3>' + t('w.s2t') + '</h3><p class="note">' + t('w.s2h') + '</p>' +
+        '<h4>' + t('s2.dims') + '</h4><p class="note">' + t('s2.dimsHint') + '</p><div class="row">' + App.fld(t('f.len'), App.inp('len', p, { min: 3, max: 300 })) + App.fld(t('f.wid'), App.inp('wid', p, { min: 3, max: 300 })) + '</div>' +
+        (p.system !== 'grid' ? '<h4>' + t('s2.battery') + '</h4>' + batBox(p) : '') +
         '<div class="row">' + App.fld(t('f.az'), '<select data-f="azDev" data-num="1" id="f-azDev"><option value=""' + (azv === '' ? ' selected' : '') + '>' + t('az.unk') + '</option>' + [0, 45, 90, 180].map(function (d) { return '<option value="' + d + '"' + (azv === String(d) ? ' selected' : '') + '>' + t('az.' + d) + '</option>'; }).join('') + '</select>') + App.fld(t('f.tilt'), App.inp('tilt', p, { min: 0, max: 35 }), t('f.tiltHint')) + '</div>' +
         App.fld(t('f.shade'), App.sel('shade', p, [['unknown', t('shade.unknown')], ['none', t('shade.none')], ['some', t('shade.some')]])) +
         (p.shade === 'some' ? App.fld(t('f.obsArea'), App.inp('obstacle', p, { min: 0, max: 5000 }), t('f.obsHint')) : '') +
@@ -169,15 +171,28 @@
     if (!R.ok) return '<div class="warnbox">' + t('err.' + R.error) + '</div>';
     var tab = UI.dtab || 'comp', tabs = [['comp', t('tab.comp')], ['spec', t('tab.spec')], ['cost', t('tab.cost')]];
     var body = tab === 'comp' ? App.compTable(R, false) : tab === 'spec' ? specsTable(R) : App.compTable(R, true) + App.finTable(R);
-    return accBox(R, 'edit') + '<div class="dgrid"><div class="card vcol">' + App.viewerHTML() + '</div>' +
-      '<div class="dside"><div class="card"><h3>' + t('tab.title') + '</h3><div class="tabs" role="tablist">' + tabs.map(function (x) { return '<button type="button" role="tab" data-dtab="' + x[0] + '" aria-selected="' + (tab === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div><div class="tabbody">' + body + '</div></div></div></div>' +
-      App.warnList(R) + sizeOptions(R, p) + (R.bat ? '<div class="card"><h4>' + t('rep.bess') + '</h4>' + App.kv(t('bess.nominal'), R.bat.nominal + ' kWh', 'est') + App.kv(t('bess.backup'), R.bat.backupH.toFixed(1) + ' h', 'est') + '</div>' : '') +
-      '<div class="dgrid"><div class="card"><h3>' + t('res.actions') + '</h3><div class="row wnav"><button class="btn" id="saveBtn" type="button">' + t('proj.save') + '</button><button class="btn ghost" id="reportBtn" type="button">' + t('rep.open') + '</button></div><div id="saveMsg" class="note" role="status"></div>' +
-      '<div class="replist">' + [['plan', t('rep.l.plan')], ['specs', t('rep.l.specs')], ['save', t('rep.l.save')]].map(function (x) { return '<button type="button" class="repbtn" data-rep="' + x[0] + '">' + App.icon('doc') + '<span>' + x[1] + '</span></button>'; }).join('') + '</div></div>' +
+    var big = function (k, v) { return '<div class="bigstat">' + v + '</div>'; };
+    var brief = '<div class="card brief"><h3>' + t('res.sumT') + '</h3><ul class="briefl"><li>' + t('res.sys', { n: R.n, k: R.kwp.toFixed(1) }) + '</li><li>' + t('res.cov', { c: Math.round(R.coverage * 100) }) + '</li><li>' + t('res.saveL', { s: fmt(R.save) }) + '</li><li>' + t('res.payL', { y: App.paybackText(R) }) + '</li></ul><p class="note">' + t('res.costL', { c: fmt(R.cost) }) + '</p></div>';
+    return brief + accBox(R, 'edit') + '<div class="card vcol"><h3>' + t('res.view') + '</h3>' + App.viewerHTML() + '</div>' + App.warnList(R) + sizeOptions(R, p) +
+      '<details class="card techd"' + (UI.techOpen ? ' open' : '') + '><summary><b>' + t('res.tech') + '</b></summary><div class="tabs" role="tablist">' + tabs.map(function (x) { return '<button type="button" role="tab" data-dtab="' + x[0] + '" aria-selected="' + (tab === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div><div class="tabbody">' + body + '</div>' + (R.bat ? '<h4>' + t('rep.bess') + '</h4>' + App.kv(t('bess.nominal'), R.bat.nominal + ' kWh', 'est') + App.kv(t('bess.backup'), R.bat.backupH.toFixed(1) + ' h', 'est') : '') + '</details>' +
+      '<div class="dgrid"><div class="card"><h3>' + t('res.actions') + '</h3><div class="row wnav"><button class="btn" id="saveBtn" type="button">' + t('proj.save') + '</button><button class="btn ghost" id="reportBtn" type="button">' + t('rep.open') + '</button></div><div id="saveMsg" class="note" role="status"></div></div>' +
       '<div class="dside"><div class="card" id="reqBox"><h3>' + t('req.submit') + '</h3><p class="note">' + t('req.submitNote') + '</p><div class="row">' + App.fld(t('f.cname'), '<input id="rq-name" type="text" maxlength="80" value="' + esc(p.customerName) + '">') + App.fld(t('f.phone'), '<input id="rq-phone" type="tel" inputmode="tel" maxlength="16" placeholder="05xxxxxxxx" value="' + esc(p.phone) + '">') + '</div>' +
       '<div class="err" id="rq-err" role="alert"></div><button class="btn" id="rqBtn" type="button">' + t('req.send') + '</button><div id="rq-ok"></div></div></div></div>';
   }
 
+  // nearest of the covered cities (great-circle distance); location is never sent anywhere
+  function geolocate(p, done) {
+    if (!navigator.geolocation) return done(t('geo.err'));
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      var la = pos.coords.latitude, lo = pos.coords.longitude, best = null;
+      Object.keys(C.CITIES).forEach(function (k) {
+        var c = C.CITIES[k], dLa = (c.lat - la) * Math.PI / 180, dLo = (c.lon - lo) * Math.PI / 180, x = Math.sin(dLa / 2) * Math.sin(dLa / 2) + Math.cos(la * Math.PI / 180) * Math.cos(c.lat * Math.PI / 180) * Math.sin(dLo / 2) * Math.sin(dLo / 2), d = 6371 * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+        if (!best || d < best.d) best = { k: k, d: d };
+      });
+      p.city = best.k; p.geo = { lat: Math.round(la * 1000) / 1000, lon: Math.round(lo * 1000) / 1000 }; App.persist();
+      done(t('geo.ok', { c: App.cityName(best.k), d: Math.round(best.d) }) + (best.d > 150 ? ' ' + t('geo.far') : ''));
+    }, function () { done(t('geo.err')); }, { timeout: 10000, maximumAge: 600000 });
+  }
   function shrinkPhoto(file, done) {
     var fr = new FileReader();
     fr.onerror = function () { done(null); };
@@ -196,35 +211,37 @@
     var p = draft(), n = UI.step > 3 ? 3 : UI.step, R = App.design(p), h; UI.step = n;
     if (n <= 2) h = '<div class="stack"><div class="card">' + stepper() + '</div><div class="studio"><div class="card fcol"><div id="stepBody">' + stepBody(p) + '</div>' + nav(n) + '</div>' + viewerBlock(R, p) + '</div></div>';
     else h = '<div class="stack"><div class="card">' + stepper() + '</div>' + resultStep(p, R) + '<div class="card">' + nav(n) + '</div></div>';
-    return { html: h, sum: App.summaryHTML(R), bind: function () {
+    return { html: h, bind: function () {
       var showErr = function (m) { var e = $('#err'); if (e) e.textContent = m; };
       $$('.steps button').forEach(function (b) { b.onclick = function () { jump(+b.dataset.step); }; });
       $$('[data-go]').forEach(function (b) { b.onclick = function () { jump(+b.dataset.go); }; });
       function jump(to) {
         if (to > UI.step) {
           var chk = App.design(p);
-          if (chk.error === 'dims' || chk.error === 'cons' || chk.error === 'ac') { UI.step = 1; App.persist(); App.route(); return setTimeout(function () { showErr(t('err.' + chk.error)); }, 0); }
+          if (chk.error === 'dims' || chk.error === 'cons' || chk.error === 'ac') { var back = UI.step; UI.step = 1; App.persist(); App.route(); return setTimeout(function () { showErr(t(chk.error === 'dims' ? 'err.area' : 'err.' + chk.error)); }, 0); }
           if (to >= 3 && !chk.ok) { UI.step = 1; App.route(); return setTimeout(function () { showErr(t('err.' + chk.error)); }, 0); }
         }
         UI.step = to; App.route();
       }
       if (n <= 2) {
         App.bindFields($('#stepBody'), p, function (path) {
-          if (path === 'len' || path === 'wid') { var a = $('#areaT'); if (a) a.textContent = fmt((p.len || 0) * (p.wid || 0)); }
+          if (path === 'area') { var ar = Number(p.area) || 0; if (ar >= 9) { var l = Math.sqrt(ar / 1.5); p.len = Math.round(l * 10) / 10; p.wid = Math.round(l * 15) / 10; } else { p.len = ''; p.wid = ''; } App.persist(); }
+          if (path === 'len' || path === 'wid') { p.area = Math.round((Number(p.len) || 0) * (Number(p.wid) || 0)); }
           if (path === 'mode' || path === 'shade') return App.route();
           if (path === 'battery.need') { $('#batBox').innerHTML = batBox(p); App.bindFields($('#batBox'), p, function () { live(p); }); }
           if (path === 'azDev' && p.azDev === '') delete p.azDev;
           live(p);
         });
         $$('[data-type]').forEach(function (b) { b.onclick = function () { p.type = b.dataset.type; p.kind = C.TYPES[p.type].kind; App.persist(); $$('[data-type]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); live(p); }; });
-        $$('[data-sys]').forEach(function (b) { b.onclick = function () { p.system = b.dataset.sys; if (!p.battery) p.battery = {}; if (p.system === 'offgrid') { p.battery.need = true; p.battery.hours = Math.max(p.battery.hours || 0, 12); } App.persist(); App.route(); }; });
+        var bc = $('#batChk'); if (bc) bc.onchange = function () { if (!p.battery) p.battery = {}; p.system = bc.checked ? 'hybrid' : 'grid'; p.battery.need = bc.checked; App.persist(); live(p); };
+        var gb = $('#geoBtn'); if (gb) gb.onclick = function () { geolocate(p, function (m) { var g = $('#geoMsg'); if (g) g.textContent = m; var cs = $('#f-city'); if (cs) cs.value = p.city; live(p); }); };
         var pin = $('#photoIn'); if (pin) pin.onchange = function () { var f = pin.files && pin.files[0]; if (!f) return; shrinkPhoto(f, function (d) { if (!d) return showErr(t('photo.err')); p.photo = d; App.persist(); App.route(); }); };
         var pd = $('#photoDel'); if (pd) pd.onclick = function () { delete p.photo; App.persist(); App.route(); };
         App.bindViewer(R, p, {});
       }
       if (n === 3 && R.ok) {
         App.bindViewer(R, p, { edit: true, onEdit: function () { App.route(); } });
-        $$('[data-dtab]').forEach(function (b) { b.onclick = function () { UI.dtab = b.dataset.dtab; App.route(); }; });
+        $$('[data-dtab]').forEach(function (b) { b.onclick = function () { UI.dtab = b.dataset.dtab; UI.techOpen = true; App.route(); }; });
         $$('[data-size]').forEach(function (b) { b.onclick = function () { p.sizePct = +b.dataset.size; p.manual = false; App.persist(); App.route(); }; });
         var ae = $('#accEdit'); if (ae) ae.onclick = function () { UI.step = 2; App.route(); };
         $('#saveBtn').onclick = function () { saveDraft(p); $('#saveMsg').textContent = t('proj.saved'); };
@@ -248,9 +265,10 @@
       var p = findProject(UI.sel);
       if (!p) return { html: '<div class="card"><div class="empty">' + t('rep.pick') + '<br><br><a class="btn" href="#reports">' + t('nav.' + (tech ? 'engineer' : 'customer') + '.reports') + '</a></div></div>' };
       var R = App.design(p); if (!R.ok) return { html: '<div class="card">' + App.errBox(R) + '</div>' };
-      var back = tech ? 'reports' : 'reports';
+      var back = tech ? 'reports' : 'projects';
       return { html: '<div class="card rview"><div class="rbar"><a class="btn ghost small" href="#' + back + '">' + t('back') + '</a>' + (App.canPrint() ? '<button class="btn small" id="printBtn" type="button">' + t('rep.print') + '</button>' : '<span class="note">' + t('rep.noPrint') + '</span>') + '<button class="btn ghost small" id="copyBtn" type="button">' + t('rep.copy') + '</button><span id="copyMsg" class="note" role="status"></span></div><div id="reportBody">' + App.reportHTML(R, p, tech) + '</div></div>',
         bind: function () {
+          var r3 = $('#r3d'); if (r3 && root.Viewer3D) setTimeout(function () { var im = root.Viewer3D.snapshots(R, [[-0.75, 0.55], [0.9, 0.3]]); r3.innerHTML = im.length ? im.map(function (u) { return '<img alt="3D" src="' + u + '">'; }).join('') : '<p class="note">' + t('viz.no3d') + '</p>'; }, 60);
           if (UI.repFocus) { var fe = $('#rep-' + UI.repFocus); UI.repFocus = null; if (fe && fe.scrollIntoView) fe.scrollIntoView(); }
           var pb = $('#printBtn'); if (pb) pb.onclick = function () { var r = $('#report'); r.innerHTML = $('#reportBody').innerHTML; try { window.print(); } catch (e) {} };
           $('#copyBtn').onclick = function () { App.copyText(t('rep.copyText', { name: p.name || '-', kwp: R.kwp.toFixed(1), n: R.n, cost: fmt(R.cost), save: fmt(R.save), pay: R.payback == null ? '-' : R.payback.toFixed(1) }), function () { $('#copyMsg').textContent = t('copied'); }); };

@@ -97,6 +97,7 @@
       requestAnimationFrame(frame);
     }
 
+    function el_w() { return el.clientWidth || 300; } function el_h() { return el.clientHeight || 380; }
     var dom = r.domElement;
     dom.addEventListener('pointerdown', function (e) { drag = { x: e.clientX, y: e.clientY }; st.auto = false; dom.setPointerCapture(e.pointerId); el.style.cursor = 'grabbing'; });
     dom.addEventListener('pointermove', function (e) {
@@ -119,6 +120,11 @@
         st.auto = false;
         if (name === 'top') { st.az = 0; st.el = 1.45; } else if (name === 'side') { st.az = 0; st.el = 0.2; } else { st.az = -0.75; st.el = 0.55; }
       },
+      snap: function (az, el, w, h) {
+        var ow = el_w(), oh = el_h(); r.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix();
+        cam.position.set(Math.sin(az) * Math.cos(el) * st.dist, st.h + Math.sin(el) * st.dist, Math.cos(az) * Math.cos(el) * st.dist); cam.lookAt(0, st.h * 0.6, 0);
+        r.render(sc, cam); var url = r.domElement.toDataURL('image/png'); r.setSize(ow, oh, false); return url;
+      },
       state: function () { return { az: st.az, el: st.el, dist: st.dist }; },
       reset: function () { st.az = -0.75; st.el = 0.55; st.auto = true; st.key = ''; build(R); },
       destroy: function () {
@@ -129,5 +135,12 @@
     };
   }
 
-  root.Viewer3D = { mount: mount };
+  // static 3D pictures for the printed report (rendered off-screen from the same model as the live viewer)
+  function snapshots(R, views) {
+    var host = document.createElement('div'); host.style.cssText = 'position:fixed;left:-9999px;top:0;width:900px;height:560px';
+    document.body.appendChild(host); var out = [], m = null;
+    try { m = mount(host, R); if (m) views.forEach(function (v) { out.push(m.snap(v[0], v[1], 900, 560)); }); } catch (e) { out = []; }
+    if (m) m.destroy(); if (host.parentNode) host.parentNode.removeChild(host); return out;
+  }
+  root.Viewer3D = { mount: mount, snapshots: snapshots };
 })(window);
