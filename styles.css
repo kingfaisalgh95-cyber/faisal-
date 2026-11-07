@@ -226,3 +226,8 @@ input[type=file]{max-width:100%;min-width:0}.photo{flex-wrap:wrap}
 .techd>summary{cursor:pointer;padding:2px 0}.techd[open]>summary{margin-bottom:10px}
 .r3d{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}.r3d img{width:100%;border-radius:10px;border:1px solid var(--line)}
 @media print{.r3d{grid-template-columns:1fr 1fr}.r3d img{break-inside:avoid}}
+
+.logobox{display:block;background:#fff;border-radius:14px;padding:8px 14px;line-height:0;box-shadow:0 1px 0 rgba(0,0,0,.06)}.logobox img{display:block;width:100%;max-width:120px;height:auto;margin-inline:auto}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@media(max-width:1180px){.logobox{padding:4px 8px;border-radius:10px}.logobox img{width:auto;height:54px}}
+.rlogo{height:64px;width:auto}

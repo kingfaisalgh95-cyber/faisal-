@@ -339,7 +339,7 @@
   }
   function reportHTML(R, p, tech) {
     var d = new Date().toLocaleDateString(S.lang === 'ar' ? 'ar-SA' : 'en-GB');
-    var h = '<div class="rhead"><div><h1>' + t(tech ? 'rep.techTitle' : 'rep.title') + '</h1><div>' + esc(p.name || '-') + ' · ' + t('type.' + R.type) + ' · ' + cityName(R.cityKey) + ' · ' + t('sys.' + R.system) + '</div></div><div class="rbrand"><b>' + t('brand') + '</b><div>' + d + '</div></div></div>';
+    var h = '<div class="rhead"><div><h1>' + t(tech ? 'rep.techTitle' : 'rep.title') + '</h1><div>' + esc(p.name || '-') + ' · ' + t('type.' + R.type) + ' · ' + cityName(R.cityKey) + ' · ' + t('sys.' + R.system) + '</div></div><div class="rbrand"><img class="rlogo" src="assets/logo-shaqaf-160.png" alt="' + t('brand') + '"><div>' + d + '</div></div></div>';
     h += '<div class="rstatus">' + tag('est') + (p.simulated ? ' ' + tag('sim') : '') + ' ' + (R.equipVerified ? tag('ver') : '<span class="tag usr">' + t('rep.unverified') + '</span>') + '</div>';
     h += '<h2>' + t('rep.summary') + '</h2><div class="rgrid"><div><span>' + t('sum.kwp') + '</span><b>' + R.kwp.toFixed(1) + ' kWp</b></div><div><span>' + t('sum.panels') + '</span><b>' + R.n + '</b></div><div><span>' + t('sum.cost') + '</span><b>' + money(R.cost) + '</b></div><div><span>' + t('fin.prod') + '</span><b>' + fmt(R.prod) + ' kWh</b></div><div><span>' + t('fin.save1') + '</span><b>' + money(R.save) + '</b></div><div><span>' + t('fin.payback') + '</span><b>' + paybackText(R) + '</b></div></div>';
     h += '<h2 id="rep-plan">' + t('rep.layout') + '</h2><div class="rroof">' + roofSVG(R, p, {}) + '</div><h2 id="rep-3d">' + t('rep.3d') + '</h2><div class="r3d" id="r3d"></div>';
